@@ -145,4 +145,10 @@
     window.addEventListener('scroll', onScroll, { passive: true });
     onScroll();
   }
+
+  /* ---------- 4. Footer copyright year ---------- */
+  // Keep the footer year current. The HTML ships a hard-coded fallback year so the
+  // footer is correct even without JS; this just bumps it on each new year.
+  var yearEl = document.getElementById('copyright-year');
+  if (yearEl) yearEl.textContent = new Date().getFullYear();
 })();
