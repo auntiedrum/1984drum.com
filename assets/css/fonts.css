@@ -1,0 +1,13 @@
+/*
+ * Self-hosted Roboto Slab (variable, latin subset) — used as a free, license-clean
+ * replacement for the site's original Adobe Fonts "Museo Slab" typeface.
+ * One variable woff2 covers weights 100–900, so each named weight points at the
+ * same file with the matching `font-weight`.
+ */
+@font-face {
+  font-family: 'Roboto Slab';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('../fonts/roboto-slab-latin.woff2') format('woff2');
+}
