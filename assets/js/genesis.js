@@ -181,29 +181,45 @@
   var startClock = null;
   function clk() { return ((window.performance && performance.now) ? performance.now() : Date.now()); }
 
+  // Each frame's Ken-Burns motion runs across its ENTIRE visible life — from the
+  // moment it begins fading in, through its hold, until it finishes fading out —
+  // as one continuous timeline. So a frame's `t` is the SAME function of the clock
+  // whether it's currently the incoming or the outgoing frame: no snap at handoff.
+  //
+  // Frame i "owns" the slot starting at i*CYCLE_MS. It becomes visible TRANSITION_MS
+  // earlier (its fade-in) and stays until (i+1)*CYCLE_MS (end of its fade-out), so
+  // its life spans LIFE = TRANSITION_MS + CYCLE_MS.
+  var LIFE = CYCLE_MS + TRANSITION_MS;
+
+  // Ken-Burns t (0..1) for the frame occupying global slot `slot`, at absolute
+  // `elapsed` ms. slot can exceed FRAME_COUNT or be the "next" slot; the image
+  // index is slot % FRAME_COUNT. t is continuous and clamped to [0,1].
+  function frameT(slot, elapsed) {
+    var lifeStart = slot * CYCLE_MS - TRANSITION_MS; // when this frame began fading in
+    var t = (elapsed - lifeStart) / LIFE;
+    return t < 0 ? 0 : (t > 1 ? 1 : t);
+  }
+
   function render() {
     if (loaded === 0) return;
     if (startClock === null) startClock = clk();
     var elapsed = clk() - startClock;
-    var idx = Math.floor(elapsed / CYCLE_MS) % FRAME_COUNT;
-    var into = elapsed - Math.floor(elapsed / CYCLE_MS) * CYCLE_MS; // 0..CYCLE_MS
+    var slot = Math.floor(elapsed / CYCLE_MS);
+    var into = elapsed - slot * CYCLE_MS; // 0..CYCLE_MS within the current slot
+    var idx = ((slot % FRAME_COUNT) + FRAME_COUNT) % FRAME_COUNT;
     var next = (idx + 1) % FRAME_COUNT;
 
-    // Ken-Burns t for current frame across its whole cycle (and into next)
-    var tCur = into / CYCLE_MS;
-    // the incoming frame has already been "alive" since the dissolve started;
-    // give it a t starting near 0 so it begins its own slow move.
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, W, H);
 
     if (into < HOLD_MS || prefersReduced) {
-      // just the current frame, moving
-      drawFrame(idx, tCur, 1);
+      // hold: just the current frame, continuing its single motion path
+      drawFrame(idx, frameT(slot, elapsed), 1);
     } else {
+      // dissolve: outgoing (slot) and incoming (slot+1) each evaluated on their
+      // OWN continuous life-timeline, so neither jumps when the slot advances.
       var p = (into - HOLD_MS) / TRANSITION_MS; // 0..1
-      var tNext = (p * TRANSITION_MS) / CYCLE_MS; // small, continues into next cycle
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      drawDissolve(idx, next, p, tCur, tNext);
+      drawDissolve(idx, next, p, frameT(slot, elapsed), frameT(slot + 1, elapsed));
     }
   }
 
