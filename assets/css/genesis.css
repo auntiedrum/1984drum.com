@@ -1,0 +1,51 @@
+/*
+ * genesis.css — styling for the "Fragments of Infinity" looping animation piece
+ * that replaces the static image grid on the homepage.
+ */
+.genesis {
+  position: relative;
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+  background: #0d130f;            /* dark backdrop while frames load */
+  overflow: hidden;
+  line-height: 0;
+}
+.genesis__canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  image-rendering: auto;
+}
+
+/* Sound toggle button (bottom-right) */
+.genesis__sound {
+  position: absolute;
+  bottom: 14px;
+  right: 14px;
+  width: 42px;
+  height: 42px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, .45);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .2s ease, opacity .2s ease;
+  -webkit-tap-highlight-color: transparent;
+  z-index: 2;
+}
+.genesis__sound:hover { background: rgba(0, 0, 0, .7); }
+.genesis__sound svg { width: 20px; height: 20px; display: block; }
+/* show the muted icon by default; swap to the on icon when active */
+.genesis__sound .icon-on { display: none; }
+.genesis__sound .icon-off { display: block; }
+.genesis__sound.is-on .icon-on { display: block; }
+.genesis__sound.is-on .icon-off { display: none; }
+
+@media (max-width: 540px) {
+  .genesis__sound { width: 36px; height: 36px; bottom: 10px; right: 10px; }
+  .genesis__sound svg { width: 17px; height: 17px; }
+}
