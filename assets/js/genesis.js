@@ -146,48 +146,45 @@
     var e = p * p * (3 - 2 * p); // smoothstep
     // 1) old frame (still Ken-Burns moving) as the base, fully opaque
     drawFrame(fromI, tFrom, 1);
-    // 2) incoming frame onto offscreen, masked by a softened threshold of the
-    //    noise field that widens with progress -> patches grow and feather in.
-    if (off.width !== canvas.width || off.height !== canvas.height) { off.width = canvas.width; off.height = canvas.height; }
-    octx.setTransform(1, 0, 0, 1, 0, 0);
-    octx.clearRect(0, 0, off.width, off.height);
-    octx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    // draw incoming frame (Ken-Burns) into offscreen
-    (function () {
-      var im = images[toI]; if (!im || !im.complete || !im.naturalWidth) return;
-      var kb = kbParams(toI);
-      var z = kb.z0 + (kb.z1 - kb.z0) * tTo;
-      var ir = im.naturalWidth / im.naturalHeight, br = W / H, bw, bh;
-      if (ir > br) { bh = H; bw = H * ir; } else { bw = W; bh = W / ir; }
-      var dw = bw * z, dh = bh * z;
-      var panX = (kb.px * tTo - kb.px * 0.5) * W;
-      var panY = (kb.py * tTo - kb.py * 0.5) * H;
-      octx.drawImage(im, (W - dw) / 2 + panX, (H - dh) / 2 + panY, dw, dh);
-    })();
-    // build the feathered alpha mask for the incoming frame:
-    // keep the incoming pixels where (noise < threshold-band). The band is wide
-    // and the noise is upscaled smoothly => soft, growing organic reveal.
-    if (noiseReady) {
+    // 2) the incoming frame is drawn FULL-CANVAS over the old one, with a global
+    //    cross-fade alpha. This alone guarantees complete coverage (no seams /
+    //    uncovered rectangles). drawFrame uses the live W/H so it always fills.
+    drawFrame(toI, tTo, e);
+    // 3) ADD a soft, organic noise-textured reveal on top — purely additive, so it
+    //    can only ever increase how much of the incoming frame shows, never leave a
+    //    gap. This gives the dissolve its cloudy, non-uniform feel without risking
+    //    the hard-edged coverage bug the old destination-in masking had.
+    if (noiseReady && p > 0.04 && p < 0.98) {
+      if (off.width !== canvas.width || off.height !== canvas.height) { off.width = canvas.width; off.height = canvas.height; }
       octx.setTransform(1, 0, 0, 1, 0, 0);
-      octx.globalCompositeOperation = 'destination-in';
-      octx.imageSmoothingEnabled = true; // smooth upscaling => feathered edges
-      // Two overlaid passes: a global fade (e) + a noise-biased reveal, combined
-      // by drawing the smoothed noise with an alpha that ramps with progress.
-      // Simpler & robust: alpha = clamp((e*1.6 - noise*0.6)) — approximate by
-      // drawing noise at low alpha then a flat fill at alpha e.
-      // Pass A: organic patches — draw smoothed inverted noise, alpha grows with e
-      octx.globalAlpha = Math.min(1, e * 1.15);
-      octx.drawImage(noiseCanvas, 0, 0, off.width, off.height);
-      // Pass B: ensure full reveal by the end — flat alpha = e^1.5
-      octx.globalAlpha = Math.pow(e, 1.6);
-      octx.fillStyle = '#fff';
-      octx.fillRect(0, 0, off.width, off.height);
-      octx.globalAlpha = 1;
-      octx.globalCompositeOperation = 'source-over';
+      octx.clearRect(0, 0, off.width, off.height);
+      octx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      // incoming frame into offscreen (same Ken-Burns placement as drawFrame)
+      var im = images[toI];
+      if (im && im.complete && im.naturalWidth) {
+        var kb = kbParams(toI);
+        var z = kb.z0 + (kb.z1 - kb.z0) * tTo;
+        var ir = im.naturalWidth / im.naturalHeight, br = W / H, bw, bh;
+        if (ir > br) { bh = H; bw = H * ir; } else { bw = W; bh = W / ir; }
+        var dw = bw * z, dh = bh * z;
+        var panX = (kb.px * tTo - kb.px * 0.5) * W;
+        var panY = (kb.py * tTo - kb.py * 0.5) * H;
+        octx.drawImage(im, (W - dw) / 2 + panX, (H - dh) / 2 + panY, dw, dh);
+        // multiply the offscreen frame by the smooth noise (destination-in keeps it
+        // only in the noisy patches) — this layer is then ADDED over the base cross-
+        // fade, so uncovered areas simply fall back to the cross-fade (no seam).
+        octx.setTransform(1, 0, 0, 1, 0, 0);
+        octx.globalCompositeOperation = 'destination-in';
+        octx.imageSmoothingEnabled = true;
+        // strongest in the middle of the transition, gone by the ends
+        octx.globalAlpha = Math.sin(p * Math.PI) * 0.6;
+        octx.drawImage(noiseCanvas, 0, 0, off.width, off.height);
+        octx.globalAlpha = 1;
+        octx.globalCompositeOperation = 'source-over';
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.drawImage(off, 0, 0);
+      }
     }
-    // 3) composite the feathered incoming frame over the old one
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.drawImage(off, 0, 0);
     ctx.setTransform(1, 0, 0, 1, 0, 0); // reset; drawFrame manages its own transform via W/H coords
   }
 
