@@ -31,8 +31,9 @@
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
 
-  // ---- Load frames ----
+  // ---- Load frames (+ their afterimage "ghost" highlight layers) ----
   var images = new Array(FRAME_COUNT);
+  var ghosts = new Array(FRAME_COUNT); // colour-inverted bright-region overlays
   var loaded = 0;
   function pad(i) { return (i < 10 ? '0' : '') + i; }
   function preload(i) {
@@ -40,16 +41,33 @@
     im.onload = function () { loaded++; if (loaded === 1) { fit(); } };
     im.src = BASE + 'frame' + pad(i) + '.webp';
     images[i] = im;
+    var gh = new Image();
+    gh.src = BASE + 'ghost' + pad(i) + '.webp';
+    ghosts[i] = gh;
   }
 
   // ---- Canvas sizing (devicePixelRatio aware) ----
   var W = 0, H = 0, dpr = 1;
+  var FRAME_AR = 1100 / 660;
+  function isFs() {
+    return (document.fullscreenElement === root || document.webkitFullscreenElement === root);
+  }
   function fit() {
-    var rect = root.getBoundingClientRect();
     dpr = Math.min(window.devicePixelRatio || 1, 2);
-    W = Math.max(1, Math.round(rect.width));
-    H = Math.round(W * 660 / 1100); // frames are 1100x660
-    canvas.style.height = H + 'px';
+    if (isFs()) {
+      // fill the screen, letterboxing to the frame aspect ratio
+      var sw = window.innerWidth, sh = window.innerHeight;
+      if (sw / sh > FRAME_AR) { H = sh; W = Math.round(sh * FRAME_AR); }
+      else { W = sw; H = Math.round(sw / FRAME_AR); }
+      canvas.style.width = W + 'px';
+      canvas.style.height = H + 'px';
+    } else {
+      var rect = root.getBoundingClientRect();
+      W = Math.max(1, Math.round(rect.width));
+      H = Math.round(W / FRAME_AR);
+      canvas.style.width = '';
+      canvas.style.height = H + 'px';
+    }
     canvas.width = Math.round(W * dpr);
     canvas.height = Math.round(H * dpr);
   }
@@ -200,6 +218,69 @@
     return t < 0 ? 0 : (t > 1 ? 1 : t);
   }
 
+  // ---- Retinal afterimage system -------------------------------------------
+  // When a frame finishes (a transition begins), we "stamp" the bright/neon
+  // shapes of the frame just stared at as a colour-INVERTED ghost. Each ghost
+  // then drifts slowly, progressively blurs, and fades out over a random 5–10s —
+  // mimicking the burn left on the retina after looking at something bright.
+  var afterimages = [];        // active ghosts
+  var lastStampedSlot = -1;    // so we stamp each frame exactly once
+
+  // deterministic-ish per-slot drift so it varies but doesn't need Math.random at
+  // module load; we DO use Math.random here at spawn time for the 5–10s lifetime.
+  function spawnAfterimage(frameIdx, elapsed, slot) {
+    var gh = ghosts[frameIdx];
+    if (!gh || !gh.complete || !gh.naturalWidth) return;
+    var ang = Math.sin(slot * 9.17 + 1.3); // -1..1 drift direction seed
+    afterimages.push({
+      img: gh,
+      kbIdx: frameIdx,          // reuse the frame's Ken-Burns path so it starts aligned
+      kbTAtBirth: frameT(slot, elapsed),
+      born: elapsed,
+      life: 5000 + Math.random() * 5000,   // 5–10s
+      driftX: Math.cos(ang * 3.1) * 0.06,  // gentle organic drift (fraction of W)
+      driftY: Math.sin(ang * 2.3) * 0.05
+    });
+    if (afterimages.length > 8) afterimages.shift(); // safety cap
+  }
+
+  function drawAfterimages(elapsed) {
+    if (!afterimages.length) return;
+    ctx.save();
+    // additive-ish glow: 'screen' lightens, so the inverted-colour ghost reads as
+    // a luminous afterglow rather than an opaque patch. Kept subtle.
+    ctx.globalCompositeOperation = 'screen';
+    for (var i = afterimages.length - 1; i >= 0; i--) {
+      var a = afterimages[i];
+      var age = (elapsed - a.born) / a.life; // 0..1
+      if (age >= 1) { afterimages.splice(i, 1); continue; }
+      // fade: ease-out so it lingers then drops away; overall subtle (cap ~0.35)
+      var fade = Math.pow(1 - age, 1.7);
+      var alpha = 0.35 * fade;
+      if (alpha < 0.01) { afterimages.splice(i, 1); continue; }
+      // progressive blur: edges soften as the memory decays
+      var blurPx = (1 + age * 7) * (dpr); // grows with age
+      // base position follows the frame's Ken-Burns path (so it's registered to
+      // where the shapes were) plus an accumulating organic drift.
+      var im = a.img;
+      var kb = kbParams(a.kbIdx);
+      var t = Math.min(1, a.kbTAtBirth + age * 0.25); // keeps creeping after birth
+      var z = kb.z0 + (kb.z1 - kb.z0) * t;
+      var ir = im.naturalWidth / im.naturalHeight, br = W / H, bw, bh;
+      if (ir > br) { bh = H; bw = H * ir; } else { bw = W; bh = W / ir; }
+      var dw = bw * z, dh = bh * z;
+      var panX = (kb.px * t - kb.px * 0.5) * W + a.driftX * age * W;
+      var panY = (kb.py * t - kb.py * 0.5) * H + a.driftY * age * H;
+      ctx.globalAlpha = alpha;
+      ctx.filter = 'blur(' + blurPx.toFixed(1) + 'px)';
+      ctx.drawImage(im, (W - dw) / 2 + panX, (H - dh) / 2 + panY, dw, dh);
+    }
+    ctx.filter = 'none';
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.restore();
+  }
+
   function render() {
     if (loaded === 0) return;
     if (startClock === null) startClock = clk();
@@ -219,8 +300,16 @@
       // dissolve: outgoing (slot) and incoming (slot+1) each evaluated on their
       // OWN continuous life-timeline, so neither jumps when the slot advances.
       var p = (into - HOLD_MS) / TRANSITION_MS; // 0..1
+      // at the START of the dissolve, stamp the outgoing frame's afterimage once
+      if (!prefersReduced && slot !== lastStampedSlot) {
+        lastStampedSlot = slot;
+        spawnAfterimage(idx, elapsed, slot);
+      }
       drawDissolve(idx, next, p, frameT(slot, elapsed), frameT(slot + 1, elapsed));
     }
+
+    // afterimages drawn on top of everything, glowing and fading
+    if (!prefersReduced) drawAfterimages(elapsed);
   }
 
   // Drive rendering with a setInterval so it keeps running even when
@@ -238,19 +327,53 @@
   // ---- Audio: muted by default, unmute toggle ----
   var audio = root.querySelector('.genesis__audio');
   var btn = root.querySelector('.genesis__sound');
-  if (audio && btn) {
-    var on = false;
-    function renderBtn() {
+  var soundOn = false;
+  function setSound(on) {
+    soundOn = on;
+    if (audio) {
+      audio.muted = !on;
+      if (on) audio.play().catch(function () {});
+    }
+    if (btn) {
       btn.setAttribute('aria-pressed', on ? 'true' : 'false');
       btn.classList.toggle('is-on', on);
       btn.title = on ? 'Mute soundscape' : 'Play soundscape';
     }
-    btn.addEventListener('click', function () {
-      on = !on;
-      audio.muted = !on;
-      if (on) { audio.play().catch(function () {}); }
-      renderBtn();
-    });
-    renderBtn();
   }
+  if (btn) {
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();      // don't trigger the fullscreen click on the canvas
+      setSound(!soundOn);
+    });
+  }
+  setSound(false); // start muted
+
+  // ---- Click the piece to go fullscreen (auto-enables sound) ----------------
+  function inFullscreen() {
+    return document.fullscreenElement === root || document.webkitFullscreenElement === root;
+  }
+  function enterFullscreen() {
+    var fn = root.requestFullscreen || root.webkitRequestFullscreen || root.msRequestFullscreen;
+    if (fn) {
+      try { var pr = fn.call(root); if (pr && pr.catch) pr.catch(function () {}); } catch (e) {}
+    }
+    setSound(true); // fullscreen turns sound ON (stays on after exit)
+  }
+  // click anywhere on the canvas/piece toggles fullscreen (the sound button stops
+  // propagation so it won't also fullscreen). Hover affordance handled in CSS.
+  canvas.addEventListener('click', function () {
+    if (inFullscreen()) {
+      var ex = document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen;
+      if (ex) { try { ex.call(document); } catch (e) {} }
+    } else {
+      enterFullscreen();
+    }
+  });
+  // keep the canvas sized to the fullscreen viewport while fullscreen, and restore after
+  function onFsChange() {
+    root.classList.toggle('is-fullscreen', inFullscreen());
+    fit();
+  }
+  document.addEventListener('fullscreenchange', onFsChange);
+  document.addEventListener('webkitfullscreenchange', onFsChange);
 })();

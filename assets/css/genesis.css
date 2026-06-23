@@ -16,7 +16,50 @@
   width: 100%;
   height: auto;
   image-rendering: auto;
+  cursor: zoom-in; /* hover affordance: click to enlarge */
 }
+
+/* Subtle "click to enlarge" hint that appears on hover (desktop) */
+.genesis__hint {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  padding: 6px 11px;
+  font-size: 12px;
+  letter-spacing: .04em;
+  color: #fff;
+  background: rgba(0, 0, 0, .42);
+  border-radius: 20px;
+  opacity: 0;
+  transition: opacity .25s ease;
+  pointer-events: none;
+  z-index: 2;
+}
+@media (hover: hover) {
+  .genesis:hover .genesis__hint { opacity: 1; }
+}
+
+/* Fullscreen: centre the canvas on a black backdrop */
+.genesis.is-fullscreen,
+.genesis:fullscreen,
+.genesis:-webkit-full-screen {
+  max-width: none;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+}
+.genesis.is-fullscreen .genesis__canvas,
+.genesis:fullscreen .genesis__canvas,
+.genesis:-webkit-full-screen .genesis__canvas {
+  width: auto;
+  height: auto;
+  cursor: zoom-out;
+}
+.genesis.is-fullscreen .genesis__hint,
+.genesis:fullscreen .genesis__hint { display: none; }
 
 /* Sound toggle button (bottom-right) */
 .genesis__sound {
