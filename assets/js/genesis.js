@@ -226,8 +226,17 @@
   var afterimages = [];        // active ghosts
   var lastStampedSlot = -1;    // so we stamp each frame exactly once
 
-  // deterministic-ish per-slot drift so it varies but doesn't need Math.random at
-  // module load; we DO use Math.random here at spawn time for the 5–10s lifetime.
+  // ---- Tunable parameters (exposed via the slider panel) -------------------
+  // Defaults are deliberately bolder than the first pass so the effect is clearly
+  // visible; tune live and read off the values to bake new defaults.
+  var P = {
+    intensity: 0.85,  // 0..2   overall brightness/opacity of the afterglow
+    drama: 1.30,      // 0.4..2 contrast/punch of the glow (stacks + gamma)
+    linger: 7.5,      // 3..16  base fade duration in seconds (±2s random)
+    drift: 0.10,      // 0..0.4 how far ghosts wander as they fade (fraction of W)
+    bloom: 10         // 0..30  max edge-blur (px) reached as the memory decays
+  };
+
   function spawnAfterimage(frameIdx, elapsed, slot) {
     var gh = ghosts[frameIdx];
     if (!gh || !gh.complete || !gh.naturalWidth) return;
@@ -237,43 +246,47 @@
       kbIdx: frameIdx,          // reuse the frame's Ken-Burns path so it starts aligned
       kbTAtBirth: frameT(slot, elapsed),
       born: elapsed,
-      life: 5000 + Math.random() * 5000,   // 5–10s
-      driftX: Math.cos(ang * 3.1) * 0.06,  // gentle organic drift (fraction of W)
-      driftY: Math.sin(ang * 2.3) * 0.05
+      lifeBase: slot,           // seed; actual life uses P.linger at draw time
+      seedR: (Math.sin(slot * 41.3) * 0.5 + 0.5), // 0..1 stable per ghost
+      dirX: Math.cos(ang * 3.1),
+      dirY: Math.sin(ang * 2.3)
     });
-    if (afterimages.length > 8) afterimages.shift(); // safety cap
+    if (afterimages.length > 10) afterimages.shift(); // safety cap
   }
 
   function drawAfterimages(elapsed) {
-    if (!afterimages.length) return;
+    if (!afterimages.length || P.intensity <= 0) return;
     ctx.save();
-    // additive-ish glow: 'screen' lightens, so the inverted-colour ghost reads as
-    // a luminous afterglow rather than an opaque patch. Kept subtle.
+    // additive glow: 'screen' lightens, so the inverted-colour ghost reads as a
+    // luminous afterglow. Drama stacks the draw 1–2x with a gamma'd alpha for punch.
     ctx.globalCompositeOperation = 'screen';
+    var passes = P.drama > 1.25 ? 2 : 1;
     for (var i = afterimages.length - 1; i >= 0; i--) {
       var a = afterimages[i];
-      var age = (elapsed - a.born) / a.life; // 0..1
+      // lifetime driven live by the Linger control (so dragging it affects existing ghosts)
+      var life = (P.linger + (a.seedR * 4 - 2)) * 1000; // ±2s spread
+      if (life < 500) life = 500;
+      var age = (elapsed - a.born) / life; // 0..1
       if (age >= 1) { afterimages.splice(i, 1); continue; }
-      // fade: ease-out so it lingers then drops away; overall subtle (cap ~0.35)
-      var fade = Math.pow(1 - age, 1.7);
-      var alpha = 0.35 * fade;
-      if (alpha < 0.01) { afterimages.splice(i, 1); continue; }
-      // progressive blur: edges soften as the memory decays
-      var blurPx = (1 + age * 7) * (dpr); // grows with age
-      // base position follows the frame's Ken-Burns path (so it's registered to
-      // where the shapes were) plus an accumulating organic drift.
+      var fade = Math.pow(1 - age, 1.7);                       // ease-out lingering
+      var alpha = Math.min(1, 0.32 * P.intensity * Math.pow(fade, 1 / P.drama));
+      if (alpha < 0.008) { afterimages.splice(i, 1); continue; }
+      var blurPx = (1 + age * P.bloom) * dpr;                  // grows with age
       var im = a.img;
       var kb = kbParams(a.kbIdx);
-      var t = Math.min(1, a.kbTAtBirth + age * 0.25); // keeps creeping after birth
+      var t = Math.min(1, a.kbTAtBirth + age * 0.25);
       var z = kb.z0 + (kb.z1 - kb.z0) * t;
       var ir = im.naturalWidth / im.naturalHeight, br = W / H, bw, bh;
       if (ir > br) { bh = H; bw = H * ir; } else { bw = W; bh = W / ir; }
       var dw = bw * z, dh = bh * z;
-      var panX = (kb.px * t - kb.px * 0.5) * W + a.driftX * age * W;
-      var panY = (kb.py * t - kb.py * 0.5) * H + a.driftY * age * H;
-      ctx.globalAlpha = alpha;
+      var panX = (kb.px * t - kb.px * 0.5) * W + a.dirX * P.drift * age * W;
+      var panY = (kb.py * t - kb.py * 0.5) * H + a.dirY * P.drift * age * H;
       ctx.filter = 'blur(' + blurPx.toFixed(1) + 'px)';
-      ctx.drawImage(im, (W - dw) / 2 + panX, (H - dh) / 2 + panY, dw, dh);
+      var dx = (W - dw) / 2 + panX, dy = (H - dh) / 2 + panY;
+      for (var pp = 0; pp < passes; pp++) {
+        ctx.globalAlpha = alpha;
+        ctx.drawImage(im, dx, dy, dw, dh);
+      }
     }
     ctx.filter = 'none';
     ctx.globalAlpha = 1;
@@ -306,6 +319,15 @@
         spawnAfterimage(idx, elapsed, slot);
       }
       drawDissolve(idx, next, p, frameT(slot, elapsed), frameT(slot + 1, elapsed));
+    }
+
+    // Shadows: dim the base imagery so the afterglow reads stronger / moodier.
+    if (P.shadows > 0) {
+      ctx.save();
+      ctx.globalAlpha = P.shadows * 0.6;
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, W, H);
+      ctx.restore();
     }
 
     // afterimages drawn on top of everything, glowing and fading
@@ -376,4 +398,70 @@
   }
   document.addEventListener('fullscreenchange', onFsChange);
   document.addEventListener('webkitfullscreenchange', onFsChange);
+
+  // ---- Tuning sliders -------------------------------------------------------
+  // A toggle ("tune") button reveals a panel of creatively-named sliders that
+  // drive the afterimage params P live (works both in-page and in fullscreen).
+  // Read the printed values, settle on a look, and they can be baked as defaults.
+  var CONTROLS = [
+    { key: 'intensity', label: 'Intensity', min: 0, max: 2, step: 0.01 },
+    { key: 'drama', label: 'Drama', min: 0.4, max: 2, step: 0.01 },
+    { key: 'shadows', label: 'Shadows', min: 0, max: 1, step: 0.01 }, // see note below
+    { key: 'linger', label: 'Linger', min: 3, max: 16, step: 0.1 },
+    { key: 'drift', label: 'Drift', min: 0, max: 0.4, step: 0.005 },
+    { key: 'bloom', label: 'Bloom', min: 0, max: 30, step: 0.5 }
+  ];
+  // "Shadows" darkens the base frame slightly so the glow reads stronger against
+  // a moodier image — a separate dimming layer rather than an afterimage param.
+  P.shadows = 0;
+
+  var tuneBtn = document.createElement('button');
+  tuneBtn.type = 'button';
+  tuneBtn.className = 'genesis__tune';
+  tuneBtn.setAttribute('aria-label', 'Tune the afterimage effect');
+  tuneBtn.title = 'Tune effect';
+  tuneBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">' +
+    '<line x1="4" y1="7" x2="20" y2="7"/><circle cx="9" cy="7" r="2.3" fill="currentColor" stroke="none"/>' +
+    '<line x1="4" y1="17" x2="20" y2="17"/><circle cx="15" cy="17" r="2.3" fill="currentColor" stroke="none"/></svg>';
+
+  var panel = document.createElement('div');
+  panel.className = 'genesis__panel';
+  panel.setAttribute('aria-hidden', 'true');
+  var rows = '';
+  CONTROLS.forEach(function (c) {
+    var v = (c.key === 'shadows') ? P.shadows : P[c.key];
+    rows += '<label class="genesis__ctl"><span class="genesis__ctl-name">' + c.label + '</span>' +
+      '<input type="range" data-key="' + c.key + '" min="' + c.min + '" max="' + c.max + '" step="' + c.step + '" value="' + v + '">' +
+      '<output data-out="' + c.key + '">' + (+v).toFixed(2) + '</output></label>';
+  });
+  panel.innerHTML = rows +
+    '<div class="genesis__panel-foot"><button type="button" class="genesis__copy">Copy values</button>' +
+    '<span class="genesis__copied" aria-live="polite"></span></div>';
+
+  root.appendChild(tuneBtn);
+  root.appendChild(panel);
+
+  // prevent panel/button clicks from bubbling to the canvas (which would fullscreen)
+  [tuneBtn, panel].forEach(function (el) {
+    el.addEventListener('click', function (e) { e.stopPropagation(); });
+  });
+  tuneBtn.addEventListener('click', function () {
+    var open = root.classList.toggle('is-tuning');
+    panel.setAttribute('aria-hidden', open ? 'false' : 'true');
+  });
+  panel.addEventListener('input', function (e) {
+    var inp = e.target;
+    if (inp.tagName !== 'INPUT') return;
+    var key = inp.getAttribute('data-key');
+    var val = parseFloat(inp.value);
+    P[key] = val;
+    var out = panel.querySelector('[data-out="' + key + '"]');
+    if (out) out.textContent = val.toFixed(2);
+  });
+  panel.querySelector('.genesis__copy').addEventListener('click', function () {
+    var vals = CONTROLS.map(function (c) { return c.key + ': ' + (c.key === 'shadows' ? P.shadows : P[c.key]); }).join(', ');
+    var note = panel.querySelector('.genesis__copied');
+    if (navigator.clipboard) { navigator.clipboard.writeText(vals).catch(function () {}); }
+    if (note) { note.textContent = 'copied'; setTimeout(function () { note.textContent = ''; }, 1500); }
+  });
 })();
