@@ -34,6 +34,11 @@
 
   var lazyImgs = Array.prototype.slice.call(document.querySelectorAll('img.js-lazy'));
 
+  // Eagerly load the first handful of images so the hero / above-and-just-below-fold
+  // artwork is never left as a grey placeholder on initial load.
+  var EAGER = 6;
+  lazyImgs.slice(0, EAGER).forEach(loadImage);
+
   if ('IntersectionObserver' in window) {
     var io = new IntersectionObserver(function (entries, obs) {
       entries.forEach(function (e) {
@@ -42,8 +47,10 @@
           obs.unobserve(e.target);
         }
       });
-    }, { rootMargin: '400px 0px' }); // start loading a bit before they scroll in
-    lazyImgs.forEach(function (img) { io.observe(img); });
+      // Generous margin: begin loading roughly two screens ahead of the scroll
+      // position so images are ready by the time they're visible.
+    }, { rootMargin: '1500px 0px' });
+    lazyImgs.slice(EAGER).forEach(function (img) { io.observe(img); });
   } else {
     // Old browsers: just load everything up front.
     lazyImgs.forEach(loadImage);
