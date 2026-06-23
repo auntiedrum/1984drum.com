@@ -21,6 +21,19 @@ img.js-lazy { transition: opacity .35s ease; }
 img.js-lazy:not(.is-loaded) { opacity: 0; }
 img.js-lazy.is-loaded { opacity: 1; }
 
+/* Single-image and "tree" collage modules ship each <img> with an inline
+ * `height="0"; padding-bottom:<ratio>%; background:rgba(0,0,0,.03)` aspect-ratio
+ * reservation. Adobe's JS painted the image into that padded box; without it the
+ * content box is 0px tall, so only the grey placeholder background shows. Once the
+ * real source is in, drop the padding/background and let the image size naturally.
+ * Grid (`.grid__item-image`) and cover (`.cover__img`) thumbnails use absolute
+ * positioning instead, so they're explicitly excluded. */
+img.js-lazy.is-loaded:not(.grid__item-image):not(.cover__img) {
+  height: auto !important;
+  padding-bottom: 0 !important;
+  background: transparent !important;
+}
+
 /* ---------- Lightbox ---------- */
 .lb-overlay {
   position: fixed;
