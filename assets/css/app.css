@@ -4,6 +4,11 @@
  * typography come from main.css + theme.css; this only covers the JS-driven UI.
  */
 
+/* main.css ships `.transition-enabled { opacity: 0 }` — the original Adobe JS
+ * faded the page in on load. We don't do page transitions, so force the body
+ * fully visible. (Defensive: keeps the site visible even if JS fails to run.) */
+.transition-enabled { opacity: 1 !important; }
+
 /* Lazy images fade in once their real source loads. */
 img.js-lazy { transition: opacity .35s ease; }
 img.js-lazy:not(.is-loaded) { opacity: 0; }
