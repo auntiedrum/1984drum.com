@@ -9,6 +9,13 @@
  * fully visible. (Defensive: keeps the site visible even if JS fails to run.) */
 .transition-enabled { opacity: 1 !important; }
 
+/* The masonry image grid (.grid--main) ships `visibility: hidden` and relied on
+ * Adobe's "flexbox-sizer" JS to add `.grid--ready` once it measured the layout.
+ * Each grid item already carries its width / flex-grow / aspect-ratio inline,
+ * so the layout is correct without any JS — we just need to reveal it.
+ * (Defensive: shows the grid even if JS never runs.) */
+.grid--main { visibility: visible !important; }
+
 /* Lazy images fade in once their real source loads. */
 img.js-lazy { transition: opacity .35s ease; }
 img.js-lazy:not(.is-loaded) { opacity: 0; }

@@ -20,8 +20,17 @@
     if (img.dataset.sizes) img.sizes = img.dataset.sizes;
     if (img.dataset.src) img.src = img.dataset.src;
     img.dataset.loaded = '1';
-    img.classList.add('is-loaded');
+    // `is-loaded` drives our fade-in; `image-loaded` is what the theme CSS keys
+    // off to clear the grey placeholder background on grid/cover images.
+    img.classList.add('is-loaded', 'image-loaded');
   }
+
+  // Reveal the masonry grid (theme ships it `visibility: hidden`, expecting JS).
+  // The CSS override in app.css handles the no-JS case; this matches the
+  // original behaviour for anything keyed off the `.grid--ready` class.
+  Array.prototype.slice.call(document.querySelectorAll('.grid--main')).forEach(function (g) {
+    g.classList.add('grid--ready');
+  });
 
   var lazyImgs = Array.prototype.slice.call(document.querySelectorAll('img.js-lazy'));
 
