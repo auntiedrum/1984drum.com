@@ -121,69 +121,28 @@
     // (~0.8–1.05) get a calm smooth downward drift.
     var strongRoll = imgAR < 0.8;
 
-    // FIT MODE: video clips are cut to 16:10 and fill the frame (cover). STILL artworks are
-    // CONTAIN-fitted — the WHOLE piece is shown, letterboxed against the dark film background,
-    // so nothing is ever cropped or "gone too big". Only a barely-perceptible slow zoom.
+    // COVER-FIT everything: stills and clips both FILL the whole screen (zoomed so the
+    // frame is full — no letterbox). The 16mm film look (grade + grain overlay) is kept.
     var ir = mW(m) / mH(m), br = W / H, bw, bh;
-    if (m._isVideo) {
-      // cover (clips already match 16:10)
-      if (ir > br) { bh = H; bw = H * ir; } else { bw = W; bh = W / ir; }
-    } else {
-      // contain: fit the whole image inside the frame
-      if (ir > br) { bw = W; bh = W / ir; } else { bh = H; bw = H * ir; }
-    }
-    // almost no zoom: open at full-fit (1.0) and grow only a hair over the dwell
-    var z = 1.0 + 0.03 * (t * t * (3 - 2 * t));
+    if (ir > br) { bh = H; bw = H * ir; } else { bw = W; bh = W / ir; }
+    // gentle slow Ken-Burns while held: a small zoom-in + slow drift, filling the frame
+    var z = 1.06 + 0.06 * (t * t * (3 - 2 * t));
     var dw = bw * z, dh = bh * z;
-    // available slack to move within the frame (contain pieces start at 0 slack, the tiny
-    // zoom gives a little). Never pan beyond what keeps the piece sensibly in view.
-    var maxY = Math.abs(dh - H) / 2, maxX = Math.abs(dw - W) / 2;
-    var panX = 0, panY = 0, smear = 0;
-
-    // Keep the analogue stutter FEEL as a small, in-view drift (not a reveal sweep). For
-    // contain pieces there's little slack, so the motion is a gentle stepped breathing.
-    if (readsDown) {
-      var travel = Math.min(maxY, H * 0.05) + H * 0.012;   // tiny downward travel, capped
-      var STEPS = 5, HOLD = 0.62;
-      var sf = Math.min(0.999, t) * STEPS;
-      var stepIdx = Math.floor(sf), within = sf - stepIdx;
-      var fromY = (0.5 - stepIdx / STEPS) * travel;
-      var toY = (0.5 - Math.min(STEPS, stepIdx + 1) / STEPS) * travel;
-      var jp; if (within < HOLD) jp = 0; else { var u = (within - HOLD) / (1 - HOLD); jp = u * u * (3 - 2 * u); }
-      panY = fromY + (toY - fromY) * jp;
-      var blurEnv = jp > 0 && jp < 1 ? Math.sin(jp * Math.PI) : 0;
-      smear = (toY - fromY) * blurEnv * 0.9;
-      panX = Math.sin(t * 1.1) * (maxX * 0.05);
-    } else {
-      // wide pieces: very gentle floaty drift within whatever slack the zoom gives
-      var phase = (t - 0.5) * 0.6;
-      panX = Math.cos(k.dir) * (maxX * 0.5 + W * 0.01) * phase;
-      panY = Math.sin(k.dir) * (maxY * 0.5 + H * 0.01) * phase;
-    }
-    panX = Math.max(-maxX - 1, Math.min(maxX + 1, panX));
-    panY = Math.max(-maxY - 1, Math.min(maxY + 1, panY));
+    var maxY = (dh - H) / 2, maxX = (dw - W) / 2;
+    // slow drift in the piece's seeded direction (calm, never racing)
+    var phase = (t - 0.5);
+    var panX = Math.cos(k.dir) * maxX * 0.55 * phase;
+    var panY = Math.sin(k.dir) * maxY * 0.55 * phase;
+    // bias the drift downward a touch for the reading direction, but keep it gentle
+    if (readsDown) panY = (0.20 - phase * 0.45) * maxY;
+    panX = Math.max(-maxX, Math.min(maxX, panX));
+    panY = Math.max(-maxY, Math.min(maxY, panY));
 
     var bx = (W - dw) / 2 + panX, by = (H - dh) / 2 + panY;
     cctx.save();
-    // fill the letterbox margins behind contain-fitted stills so nothing shows through
-    if (!m._isVideo) {
-      cctx.globalAlpha = alpha;
-      cctx.fillStyle = '#06100c';
-      cctx.fillRect(0, 0, W, H);
-    }
+    cctx.globalAlpha = alpha;
     if (cctx.filter !== undefined) cctx.filter = GRADE;
-    if (Math.abs(smear) > 1.2) {
-      // vertical motion-blur smear during the stutter jump, sharp on the hold
-      var N = 6;
-      cctx.globalAlpha = alpha / N;
-      for (var s = 0; s < N; s++) {
-        var off = (s / (N - 1) - 0.5) * smear;
-        try { cctx.drawImage(m, bx, by + off, dw, dh); } catch (e) {}
-      }
-    } else {
-      cctx.globalAlpha = alpha;
-      try { cctx.drawImage(m, bx, by, dw, dh); } catch (e) {}
-    }
+    try { cctx.drawImage(m, bx, by, dw, dh); } catch (e) {}
     cctx.restore();
   }
 
@@ -250,8 +209,8 @@
   var vis = { cur: null, curKB: null, curBorn: 0, next: null, nextIdx: 0, nextKB: null, nextStart: 0 };
   var SWAP_EVERY = 4.0;        // reveal more work (~4s/piece)
   var TWIN_HOLD = 7.0;         // the twins linger so the joke lands
-  var IRIS_TIME = 1.3;         // seconds for the iris to bloom open from the centre
-  var KB_SPAN = SWAP_EVERY + IRIS_TIME + 1.5;
+  var KB_SPAN = SWAP_EVERY + 1.5;
+  var spliceAt = -1;           // ctx-clock time of the last cut (for the splice flicker)
   var clock = 0, lastT = 0, visTimer = null;
   var scrubbing = false;
 
@@ -312,65 +271,60 @@
       if (a) getMedia(a); if (b) getMedia(b);
     }
   }
-  // jump straight to an item (used by scrub) — no dissolve, snap to it
-  function gotoIndex(i, now) {
+  // jump straight to an item (used by scrub) — a hard splice cut
+  function gotoIndex(i, now) { cutTo(i, now); }
+
+  // cut straight to an index — like a fresh frame spliced into the reel. Sets a splice
+  // flicker that the overlay flashes for a frame or two at the join.
+  function cutTo(i, now) {
     i = ((i % gallery.length) + gallery.length) % gallery.length;
     idx = i;
-    vis.cur = getMedia(gallery[i]); vis.curKB = kb(); vis.curBorn = now;
-    vis.next = null;
-    setCaption(gallery[i]);
-    preloadAround(i);
+    vis.cur = getMedia(gallery[i]); vis.curKB = kb(); vis.curBorn = now; vis.next = null;
+    spliceAt = now;
+    setCaption(gallery[i]); preloadAround(i);
   }
 
   function renderVisual(now) {
     if (!gallery.length) return;
     cctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     cctx.clearRect(0, 0, W, H);
-    // first piece: iris it in from black (set it as the incoming, with no current)
-    if (!vis.cur && !vis.next) {
-      idx = 0; vis.nextIdx = 0;
-      vis.next = getMedia(gallery[0]); vis.nextKB = kb(); vis.nextStart = now;
-      vis.curBorn = now; setCaption(gallery[0]); preloadAround(0);
-    }
-    // advance automatically (unless actively scrubbing). The twins linger longer so the
-    // joke has time to land; and we SKIP the second twin if it's next (no double gag).
+    // first piece: splice it in
+    if (!vis.cur) { cutTo(0, now); }
+    // advance automatically (unless scrubbing). Hard CUT to the next — no transition, like a
+    // splice. Twins linger longer; skip the 2nd twin if adjacent (no double gag).
     var hold = isTwin(gallery[idx]) ? TWIN_HOLD : SWAP_EVERY;
-    if (!scrubbing && vis.cur && !vis.next && (now - vis.curBorn) > hold) {
+    if (!scrubbing && (now - vis.curBorn) > hold) {
       var ni = (idx + 1) % gallery.length;
       if (isTwin(gallery[idx]) && isTwin(gallery[ni])) ni = (ni + 1) % gallery.length;
-      vis.nextIdx = ni;
-      vis.next = getMedia(gallery[vis.nextIdx]); vis.nextKB = kb(); vis.nextStart = now;
+      cutTo(ni, now);
     }
-    // current piece — the twins easter egg renders both side by side
+    // draw the current piece, full-frame (twins egg shows both)
     if (isTwin(gallery[idx])) drawTwins(1, null);
     else drawCover(vis.cur, vis.curKB, Math.min(1, (now - vis.curBorn) / KB_SPAN), 1);
-    if (vis.next) {
-      // IRIS REVEAL: the incoming piece blooms out from a point in the centre — a circle
-      // that expands to fill the frame (with a soft edge), like a film iris opening.
-      var p = Math.min(1, (now - vis.nextStart) / IRIS_TIME);
-      var e = p * p * (3 - 2 * p);                       // smoothstep
-      var maxR = Math.sqrt(W * W + H * H) / 2;            // reach the corners at full open
-      var r = e * maxR * 1.02;
-      if (isTwin(gallery[vis.nextIdx])) {
-        drawTwins(1, r);                                 // iris-reveal the twin split-screen
-      } else {
-        cctx.save();
-        cctx.beginPath();
-        cctx.arc(W / 2, H / 2, Math.max(0.001, r), 0, Math.PI * 2);
-        cctx.clip();
-        drawCover(vis.next, vis.nextKB, Math.min(1, (now - vis.nextStart) / KB_SPAN), 1);
-        cctx.restore();
-      }
-      if (p >= 1) {
-        idx = vis.nextIdx;
-        vis.cur = vis.next; vis.curKB = vis.nextKB; vis.curBorn = vis.nextStart; vis.next = null;
-        setCaption(gallery[idx]); preloadAround(idx);
-      }
-    }
-    // the 70s film vibe over everything: moving grain, vignette, lamp flicker
+    // the 70s film vibe over everything: grain, vignette, lamp flicker — plus the splice flash
     drawFilmOverlay(now);
+    drawSplice(now);
     // keep the scrub bar in sync with auto-advance
     if (!scrubbing) setSeekUI(idx / Math.max(1, gallery.length - 1));
+  }
+
+  // a 1–2 frame flash / jump / grain-burst at each cut, like a film splice through the gate
+  function drawSplice(now) {
+    var dt = now - spliceAt;
+    if (dt < 0 || dt > 0.13) return;
+    var k0 = 1 - dt / 0.13;                 // 1 -> 0 over ~130ms
+    cctx.save();
+    // brief warm flash
+    cctx.globalAlpha = 0.5 * k0 * k0;
+    cctx.fillStyle = 'rgba(255,246,225,1)';
+    cctx.fillRect(0, 0, W, H);
+    // a couple of black splice bars that flick down the frame
+    cctx.globalAlpha = 0.55 * k0;
+    cctx.fillStyle = '#000';
+    var barY = (1 - k0) * H;
+    cctx.fillRect(0, barY, W, Math.max(2, H * 0.012));
+    cctx.fillRect(0, barY - H * 0.5, W, Math.max(2, H * 0.01));
+    cctx.restore();
   }
 
   function tick() {
