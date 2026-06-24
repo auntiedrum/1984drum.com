@@ -104,6 +104,12 @@ body.has-intro .site-container { display: none; }
 .intro__close:active { transform: scale(.93); }
 .intro.is-grid .intro__close { opacity: 0 !important; pointer-events: none; visibility: hidden; }   /* hidden in grid view */
 
+/* LANDING phase: just the zooming drawing clip — hide all chrome until the montage begins */
+.intro.is-landing .intro__bar,
+.intro.is-landing .intro__caption,
+.intro.is-landing .intro__close,
+.intro.is-landing .intro__title { opacity: 0 !important; pointer-events: none; transition: opacity .6s ease; }
+
 /* wordmark / title, top-left — also the grid<->montage toggle button */
 .intro__title {
   position: absolute; top: 26px; left: 28px; z-index: 6;

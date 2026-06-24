@@ -57,9 +57,48 @@
   ]).then(function (res) {
     clips = (res[0].clips || []);
     gallery = (res[1].explore || []);
+    setupLanding();
     fitCanvas();
     startVisuals();
   }).catch(function () { /* overlay still shows; visuals just won't run */ });
+
+  // ---------- landing: open on a live drawing clip, slowly zooming, while the montage loads ----------
+  var landing = { active: true, media: null, start: 0, DUR: 3.2 };
+  function setupLanding() {
+    var vids = gallery.filter(function (g) { return g.video; });
+    if (!vids.length) { landing.active = false; return; }
+    var pick = vids[Math.floor(visRand() * vids.length)];
+    landing.media = getMedia(pick);                 // a playing, muted, looping clip
+    root.classList.add('is-landing');               // CSS hides the chrome during landing
+    preloadAround(0);                               // warm the montage's first pieces
+  }
+  function drawLanding(now) {
+    if (!landing.start) landing.start = now;
+    var p = Math.min(1, (now - landing.start) / landing.DUR);
+    var m = landing.media;
+    var z = 1.0 + 0.18 * (p * p * (3 - 2 * p));      // slow eased zoom-in ~1.0 -> 1.18
+    if (ready(m)) {
+      if (m._isVideo && m.paused) m.play().catch(function () {});
+      var ir = mW(m) / mH(m), br = W / H, bw, bh;
+      if (ir > br) { bh = H; bw = H * ir; } else { bw = W; bh = W / ir; }
+      var dw = bw * z, dh = bh * z;
+      cctx.save();
+      cctx.globalAlpha = 1;
+      if (cctx.filter !== undefined) cctx.filter = GRADE;
+      try { cctx.drawImage(m, (W - dw) / 2, (H - dh) / 2, dw, dh); } catch (e) {}
+      cctx.restore();
+    } else {
+      cctx.fillStyle = '#06100c'; cctx.fillRect(0, 0, W, H);
+    }
+    drawFilmOverlay(now);
+    // once the zoom completes AND the clip has really started, splice into the montage
+    if (p >= 1 && ready(landing.media)) {
+      landing.active = false;
+      root.classList.remove('is-landing');
+      vis.cur = null;                                // renderVisual splices the first piece in
+      spliceAt = now;
+    }
+  }
 
   // ============================================================
   //  VISUALS — timeline over the whole gallery, scrubbable
@@ -340,6 +379,8 @@
     if (!gallery.length) return;
     cctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     cctx.clearRect(0, 0, W, H);
+    // LANDING: open on a live drawing clip, slowly zooming, until it splice-cuts to the montage
+    if (landing.active) { drawLanding(now); return; }
     // first piece: splice it in
     if (!vis.cur) { cutTo(0, now); }
     // advance automatically (unless scrubbing). Hard CUT to the next — no transition, like a
