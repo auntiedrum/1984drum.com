@@ -385,7 +385,7 @@
   var actx = null, master = null, comp = null;
   var seq = [], sources = [], buffers = {};
   var audioStarted = false, audioOn = false;
-  var LOOP_TARGET = 180;   // seconds of mix scheduled per loop pass
+  var LOOP_TARGET = 560;   // ~9 min loop — long enough to cycle through all the scraped clips
   var FADE_IN = 5;         // exactly 5s
   var VOL = 0.85;
   var aT0 = 0, loopTimer = null;
@@ -395,30 +395,38 @@
   function cost(a, b) {
     return Math.abs(eff(a.bpm) - eff(b.bpm)) * 2.2 + Math.abs(a.e - b.e) * 140 + Math.abs(a.bright - b.bright) / 70;
   }
+  var FEATURE_ID = 'xtwittermfrst';     // the X/Twitter clip — surface it early & in full
   function buildSequence() {
     var pool = clips.slice();
     for (var i = pool.length - 1; i > 0; i--) { var j = Math.floor(mixRand() * (i + 1)); var t = pool[i]; pool[i] = pool[j]; pool[j] = t; }
     function arc(p) { return 0.2 + 0.7 * Math.sin(Math.min(p, 0.9) / 0.9 * Math.PI); }
-    var s = [], used = {}, trackUsed = {};
+    var s = [], used = {}, trackUsed = {}, bbRun = 0;
     function note(c) { used[c.id] = (used[c.id] || 0) + 1; if (c.backbone) trackUsed[trackOf(c.id)] = (trackUsed[trackOf(c.id)] || 0) + 1; }
-    // start on a low-energy backbone piece if we have one, else lowest energy overall
-    var start = pool.reduce(function (m, c) {
+    // START on the X/Twitter clip if present (early & full length), else a low-energy piece
+    var feature = pool.filter(function (c) { return c.id === FEATURE_ID; })[0];
+    var start = feature || pool.reduce(function (m, c) {
       var mk = (m.backbone ? -1 : 0) + m.e, ck = (c.backbone ? -1 : 0) + c.e;
       return ck < mk ? c : m;
     }, pool[0]);
-    s.push(start); note(start); var total = start.dur;
+    s.push(start); note(start); var total = start.dur, sinceBackbone = 0;
     while (total < LOOP_TARGET) {
       var last = s[s.length - 1], pos = total / LOOP_TARGET, best = null, bestC = 1e9;
+      bbRun = last.backbone ? bbRun + 1 : 0;
+      sinceBackbone = last.backbone ? 0 : sinceBackbone + 1;
       for (var k = 0; k < pool.length; k++) {
         var c = pool[k]; if (c.id === last.id) continue;
-        var penalty = (used[c.id] || 0) * 45;
-        var backboneBias = c.backbone ? -58 : 0;          // ~60% of airtime is Pete's tracks
+        // STRONG reuse penalty so the mix cycles through ALL the scraped clips for variety.
+        // Texture reuses are heavily penalised; only allow a repeat once everything's played.
+        var penalty = (used[c.id] || 0) * (c.backbone ? 140 : 320);
+        // In the EXPLORER bed the scraped IG/X clips lead — they're shorter and there are 19
+        // of them, so they get most of the airtime and all surface. Pete's long backbone
+        // tracks now appear only OCCASIONALLY (every few clips) as a grounding undercurrent.
+        var backboneBias = c.backbone ? 70 : 0;            // backbone is now DIS-preferred...
+        if (c.backbone && bbRun === 0 && sinceBackbone >= 3) backboneBias = -40;  // ...except every ~4th slot
+        if (c.backbone && last.backbone) backboneBias += 200;  // never two backbone in a row here
         var sameTrack = 0;
-        if (c.backbone) {
-          sameTrack += (trackUsed[trackOf(c.id)] || 0) * 18;
-          if (last.backbone && trackOf(last.id) === trackOf(c.id)) sameTrack += 120;
-        }
-        var sc = cost(last, c) + Math.abs(c.e - arc(pos)) * 120 + penalty + backboneBias + sameTrack + mixRand() * 10;
+        if (c.backbone) sameTrack += (trackUsed[trackOf(c.id)] || 0) * 30;
+        var sc = cost(last, c) * 0.4 + Math.abs(c.e - arc(pos)) * 80 + penalty + backboneBias + sameTrack + mixRand() * 16;
         if (sc < bestC) { bestC = sc; best = c; }
       }
       if (!best) break;
@@ -427,7 +435,8 @@
     var out = [], at = 0;
     for (var n = 0; n < s.length; n++) {
       var cl = s[n], xf = 0;
-      if (n > 0) { var d = Math.abs(eff(s[n - 1].bpm) - eff(cl.bpm)); xf = d < 6 ? 1.5 : d < 14 ? 1 : d < 28 ? 0.6 : 0.3; }
+      // smoother, longer crossfades between clips (gentler blends than before)
+      if (n > 0) { var d = Math.abs(eff(s[n - 1].bpm) - eff(cl.bpm)); xf = d < 6 ? 3.0 : d < 14 ? 2.4 : d < 28 ? 1.8 : 1.2; }
       at -= xf; out.push({ clip: cl, startAt: Math.max(0, at), dur: cl.dur, xfade: xf }); at += cl.dur;
     }
     return out;
