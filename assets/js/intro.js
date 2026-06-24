@@ -234,6 +234,7 @@
   var aT0 = 0, loopTimer = null;
 
   function eff(b) { while (b > 160) b /= 2; while (b < 80) b *= 2; return b; }
+  function trackOf(id) { return id.replace(/-[a-z]$/, ''); }
   function cost(a, b) {
     return Math.abs(eff(a.bpm) - eff(b.bpm)) * 2.2 + Math.abs(a.e - b.e) * 140 + Math.abs(a.bright - b.bright) / 70;
   }
@@ -241,19 +242,30 @@
     var pool = clips.slice();
     for (var i = pool.length - 1; i > 0; i--) { var j = Math.floor(mixRand() * (i + 1)); var t = pool[i]; pool[i] = pool[j]; pool[j] = t; }
     function arc(p) { return 0.2 + 0.7 * Math.sin(Math.min(p, 0.9) / 0.9 * Math.PI); }
-    var s = [], used = {};
-    var start = pool.reduce(function (m, c) { return c.e < m.e ? c : m; }, pool[0]);
-    s.push(start); used[start.id] = 1; var total = start.dur;
+    var s = [], used = {}, trackUsed = {};
+    function note(c) { used[c.id] = (used[c.id] || 0) + 1; if (c.backbone) trackUsed[trackOf(c.id)] = (trackUsed[trackOf(c.id)] || 0) + 1; }
+    // start on a low-energy backbone piece if we have one, else lowest energy overall
+    var start = pool.reduce(function (m, c) {
+      var mk = (m.backbone ? -1 : 0) + m.e, ck = (c.backbone ? -1 : 0) + c.e;
+      return ck < mk ? c : m;
+    }, pool[0]);
+    s.push(start); note(start); var total = start.dur;
     while (total < LOOP_TARGET) {
       var last = s[s.length - 1], pos = total / LOOP_TARGET, best = null, bestC = 1e9;
       for (var k = 0; k < pool.length; k++) {
         var c = pool[k]; if (c.id === last.id) continue;
-        var penalty = used[c.id] ? 60 : 0;
-        var sc = cost(last, c) + Math.abs(c.e - arc(pos)) * 120 + penalty + mixRand() * 8;
+        var penalty = (used[c.id] || 0) * 45;
+        var backboneBias = c.backbone ? -58 : 0;          // ~60% of airtime is Pete's tracks
+        var sameTrack = 0;
+        if (c.backbone) {
+          sameTrack += (trackUsed[trackOf(c.id)] || 0) * 18;
+          if (last.backbone && trackOf(last.id) === trackOf(c.id)) sameTrack += 120;
+        }
+        var sc = cost(last, c) + Math.abs(c.e - arc(pos)) * 120 + penalty + backboneBias + sameTrack + mixRand() * 10;
         if (sc < bestC) { bestC = sc; best = c; }
       }
       if (!best) break;
-      s.push(best); used[best.id] = (used[best.id] || 0) + 1; total += best.dur;
+      s.push(best); note(best); total += best.dur;
     }
     var out = [], at = 0;
     for (var n = 0; n < s.length; n++) {

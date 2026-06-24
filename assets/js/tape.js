@@ -19,7 +19,7 @@
   var root = document.getElementById('tape-deck');
   if (!root) return;
 
-  var MIX_SECONDS = 19 * 60;        // target tape length (always the full 19 min)
+  var MIX_SECONDS = 40 * 60;        // target tape length (~40 min, Pete's tracks as the backbone)
   var SAVE_WINDOW = 30;             // seconds to save before it explodes
   var BASE = root.getAttribute('data-base') || '/assets/tape/';
 
@@ -72,7 +72,9 @@
     drawIdle();
   }).catch(function () { setStatus('LOAD ERROR'); });
 
-  // ---------- sequencing: build a coherent ~19min order from a seed ----------
+  // ---------- sequencing: build a coherent ~40min order from a seed ----------
+  // parent-track id for a stem (strip the trailing -a/-b/-x/-y/-z section suffix)
+  function trackOf(id) { return id.replace(/-[a-z]$/, ''); }
   function eff(b) { while (b > 160) b /= 2; while (b < 80) b *= 2; return b; }
   function cost(a, b) {
     var db = Math.abs(eff(a.bpm) - eff(b.bpm));
@@ -101,30 +103,41 @@
     var featureAt = featureClip ? (185 + rand() * 105) : -1;
     var featurePlaced = !featureClip;
 
-    var seq = [], used = {};
+    var seq = [], used = {}, trackUsed = {};
+    function note(c) { used[c.id] = (used[c.id] || 0) + 1; if (c.backbone) trackUsed[trackOf(c.id)] = (trackUsed[trackOf(c.id)] || 0) + 1; }
     // start on a low-energy clip
     var start = pool.reduce(function (m, c) { return c.e < m.e ? c : m; }, pool[0]);
-    seq.push(start); used[start.id] = 1;
+    seq.push(start); note(start);
     var total = start.dur;
     while (total < MIX_SECONDS) {
       // inject the feature clip when we reach its target time
       if (!featurePlaced && total >= featureAt) {
-        seq.push(featureClip); used[featureClip.id] = 1; total += featureClip.dur; featurePlaced = true;
+        seq.push(featureClip); note(featureClip); total += featureClip.dur; featurePlaced = true;
         continue;
       }
       var last = seq[seq.length - 1], pos = total / MIX_SECONDS, best = null, bestC = 1e9;
       for (var k = 0; k < pool.length; k++) {
         var c = pool[k];
-        // allow reuse once we've run through everything, but never twice in a row
-        var penalty = used[c.id] ? 60 : 0;
         if (c.id === last.id) continue;
-        var sc = cost(last, c) + Math.abs(c.e - arc(pos)) * 120 + penalty + rand() * 8;
+        // reuse penalty scales with how often this exact stem already played
+        var penalty = (used[c.id] || 0) * 45;
+        // Pete's tracks (backbone) are the spine — preferred, but not so much that the
+        // scraped texture vanishes or the mix collapses onto one or two songs.
+        var backboneBias = c.backbone ? -58 : 0;           // ~60% of airtime is Pete's tracks
+        // spread ACROSS all five tracks: penalise a track proportional to how much
+        // of it has already played, and avoid two stems of the same track in a row.
+        var sameTrack = 0;
+        if (c.backbone) {
+          sameTrack += (trackUsed[trackOf(c.id)] || 0) * 18;
+          if (last.backbone && trackOf(last.id) === trackOf(c.id)) sameTrack += 120;
+        }
+        var sc = cost(last, c) + Math.abs(c.e - arc(pos)) * 120 + penalty + backboneBias + sameTrack + rand() * 10;
         if (sc < bestC) { bestC = sc; best = c; }
       }
       if (!best) break;
-      seq.push(best); used[best.id] = (used[best.id] || 0) + 1; total += best.dur;
+      seq.push(best); note(best); total += best.dur;
     }
-    // safety: if the mix somehow ended before the window (shouldn't at 19 min), force it in
+    // safety: if the mix somehow ended before the window (shouldn't at 40 min), force it in
     if (!featurePlaced && featureClip) { seq.splice(Math.min(seq.length, 4), 0, featureClip); }
     // compute xfades + schedule times
     var out = [], at = 0;
