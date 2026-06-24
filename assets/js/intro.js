@@ -31,6 +31,9 @@
   var cctx = canvas.getContext('2d');
   var btnPlay = root.querySelector('.intro__play-btn');
   var btnMute = root.querySelector('.intro__mute-btn');
+  var btnPrev = root.querySelector('.intro__prev-btn');
+  var btnNext = root.querySelector('.intro__next-btn');
+  var trackEl = root.querySelector('.intro__track');
   var seekEl = root.querySelector('.intro__seek');     // optional (may be absent now)
   var seekFill = root.querySelector('.intro__seek-fill');
   var seekKnob = root.querySelector('.intro__seek-knob');
@@ -62,6 +65,12 @@
     setupLanding();
     fitCanvas();
     startVisuals();
+    // the mix runs from load, silent (muted). Browsers allow a muted/silent context; the
+    // first user UNMUTE resumes + fades it in. Play button stays hidden until then.
+    ensureCtx();
+    startAudio();
+    pickWord();
+    refreshPlayerUI();
   }).catch(function () { /* overlay still shows; visuals just won't run */ });
 
   // ---------- landing: open on a live drawing clip, slowly zooming, while the montage loads ----------
@@ -434,7 +443,7 @@
   var LOOP_TARGET = 560;   // ~9 min loop — long enough to cycle through all the scraped clips
   var FADE_IN = 5;         // exactly 5s
   var VOL = 0.85;
-  var aT0 = 0, loopTimer = null;
+  var aT0 = 0, loopTimer = null, clipWatch = null, lastClipIdx = -1;
 
   function eff(b) { while (b > 160) b /= 2; while (b < 80) b *= 2; return b; }
   function trackOf(id) { return id.replace(/-[a-z]$/, ''); }
@@ -519,6 +528,10 @@
       sources.push(src);
     });
   }
+  function stopAllSources() {
+    sources.forEach(function (s) { try { s.onended = null; s.stop(); } catch (e) {} });
+    sources.length = 0;
+  }
   function seqDuration() { if (!seq.length) return LOOP_TARGET; var l = seq[seq.length - 1]; return l.startAt + l.dur; }
   var schedHorizon = 0;   // ctx time we've scheduled audio up to
   function startAudio() {
@@ -544,6 +557,15 @@
           schedHorizon += dur;
         }
       }, 3000);
+      // watch which clip is sounding; change the "track name" word when it advances.
+      // lastClipIdx is module-scoped so skipClip() can pre-set it and we don't double-fire
+      // pickWord() for a single user-driven jump.
+      clipWatch = setInterval(function () {
+        if (!actx || actx.state !== 'running') return;
+        var p = (actx.currentTime - aT0) % dur; if (p < 0) p += dur;
+        var ci = 0; for (var i = 0; i < seq.length; i++) { if (p >= seq[i].startAt) ci = i; }
+        if (ci !== lastClipIdx) { lastClipIdx = ci; if (engaged) pickWord(); }
+      }, 700);
     });
   }
   function fadeAudio(target, secs) {
@@ -553,35 +575,83 @@
     master.gain.setValueAtTime(Math.max(0.0001, master.gain.value), now);
     master.gain.linearRampToValueAtTime(Math.max(0.0001, target), now + secs);
   }
-  // ---- minimal player: play/pause (start vs suspend) + mute (silence while playing) ----
-  var playing = false, muted = false;
+  // ---- player ----
+  // The mix is ALWAYS playing under the hood (starts silent on load — no gesture needed
+  // because it's muted). The user's first UNMUTE fades it in mid-track and reveals the
+  // play/pause control. Pause then suspends; play resumes. Next/Prev jump the live audio to
+  // the next/previous clip in the sequence and pick a fresh "track name" word.
+  var playing = true, muted = true, engaged = false;   // engaged = user has unmuted at least once
+  var WORDS = ['Greenman', 'Mycelium', 'Spores', 'Empathy', 'Heartwood', 'Communion', 'Petrichor',
+    'Symbiosis', 'Fungi', 'Tendrils', 'Reverie', 'Bloom', 'Lichen', 'Murmuration', 'Wildwood',
+    'Kinship', 'Verdant', 'Moss', 'Resonance', 'Fernlight', 'Solace', 'Canopy', 'Loam', 'Chorus',
+    'Tides', 'Pollen', 'Drift', 'Hollow', 'Gathering', 'Sap', 'Dawnsong', 'Undergrowth'];
+  var lastWord = '';
+  function pickWord() {
+    var w = lastWord;
+    while (w === lastWord) w = WORDS[Math.floor(visRand() * WORDS.length)];
+    lastWord = w;
+    if (trackEl) trackEl.textContent = w;
+    return w;
+  }
+
   function refreshPlayerUI() {
     if (btnPlay) { btnPlay.classList.toggle('is-playing', playing); btnPlay.setAttribute('aria-pressed', playing ? 'true' : 'false'); }
     if (btnMute) { btnMute.classList.toggle('is-muted', muted); btnMute.setAttribute('aria-pressed', muted ? 'true' : 'false'); }
+    root.classList.toggle('audio-engaged', engaged);   // CSS reveals play/next/prev once engaged
   }
   // `audioOn` (used by grid-ducking) means "currently audible"
   function applyAudioLevel(secs) {
-    audioOn = playing && !muted;
-    fadeAudio(audioOn ? VOL : 0.0001, secs);
+    audioOn = playing && !muted && !gridMode;
+    fadeAudio(playing && !muted ? VOL : 0.0001, secs);
   }
   function setPlaying(on) {
     playing = on;
     if (on) {
-      ensureCtx();
       if (actx && actx.state === 'suspended') actx.resume();
-      startAudio();                                  // first play kicks off the mix (no-op after)
-      applyAudioLevel(audioStarted ? 1.0 : FADE_IN); // gentle fade in on first start
+      applyAudioLevel(1.0);
     } else {
-      // pause: fade out, then suspend the context so the music truly stops
       applyAudioLevel(0.4);
       setTimeout(function () { if (!playing && actx && actx.state === 'running') actx.suspend(); }, 450);
     }
     refreshPlayerUI();
   }
-  function setMuted(on) { muted = on; applyAudioLevel(0.25); refreshPlayerUI(); }
+  function setMuted(on) {
+    muted = on;
+    if (!on) {                                   // first unmute "engages" the player UI
+      if (!engaged) { engaged = true; pickWord(); }
+      if (actx && actx.state === 'suspended') actx.resume();
+      playing = true;
+    }
+    applyAudioLevel(on ? 0.25 : FADE_IN);        // fade the music IN over FADE_IN on unmute
+    refreshPlayerUI();
+  }
+  // jump the live audio to another clip in the sequence (+ a fresh word)
+  function skipClip(dir) {
+    if (!actx || !seq.length) return;
+    var dur = seqDuration();
+    var posInLoop = (actx.currentTime - aT0) % dur; if (posInLoop < 0) posInLoop += dur;
+    // which clip are we in?
+    var ci = 0;
+    for (var i = 0; i < seq.length; i++) { if (posInLoop >= seq[i].startAt) ci = i; }
+    ci = ((ci + dir) % seq.length + seq.length) % seq.length;
+    lastClipIdx = ci;   // claim this clip so clipWatch won't double-fire pickWord()
+    var targetOffset = seq[ci].startAt + 0.02;
+    // stop everything currently sounding and re-anchor the schedule so `targetOffset` is "now"
+    stopAllSources();
+    var when = actx.currentTime + 0.05;
+    aT0 = when - targetOffset;
+    scheduleOnce(aT0);
+    scheduleOnce(aT0 + dur);
+    schedHorizon = aT0 + 2 * dur;
+    if (actx.state === 'suspended') actx.resume();
+    playing = true;
+    pickWord();
+    refreshPlayerUI();
+  }
   if (btnPlay) btnPlay.addEventListener('click', function (e) { e.stopPropagation(); setPlaying(!playing); });
   if (btnMute) btnMute.addEventListener('click', function (e) { e.stopPropagation(); setMuted(!muted); });
-  refreshPlayerUI();
+  if (btnPrev) btnPrev.addEventListener('click', function (e) { e.stopPropagation(); skipClip(-1); });
+  if (btnNext) btnNext.addEventListener('click', function (e) { e.stopPropagation(); skipClip(1); });
 
   // ============================================================
   //  MASONRY GRID  <->  MONTAGE  (toggled by the 1984drum wordmark)

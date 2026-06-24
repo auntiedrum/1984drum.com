@@ -14,12 +14,12 @@
         <link rel="apple-touch-icon" href="/assets/img/014472dc-ac3d-4c42-96b3-16a013966c35_carw_1x1x180.png" />
     <link rel="canonical" href="https://1984drum.com/fragments-of-infinity-2022" />
       <title>1984drum - Artworks</title>
-  <link rel="stylesheet" href="/assets/css/fonts.css?v=49" />
-  <link rel="stylesheet" href="/assets/css/main.css?v=49" />
-  <link rel="stylesheet" href="/assets/css/theme.css?v=49" />
-  <link rel="stylesheet" href="/assets/css/app.css?v=49" />
-  <link rel="stylesheet" href="/assets/css/genesis.css?v=49" />
-  <link rel="stylesheet" href="/assets/css/intro.css?v=49" />
+  <link rel="stylesheet" href="/assets/css/fonts.css?v=50" />
+  <link rel="stylesheet" href="/assets/css/main.css?v=50" />
+  <link rel="stylesheet" href="/assets/css/theme.css?v=50" />
+  <link rel="stylesheet" href="/assets/css/app.css?v=50" />
+  <link rel="stylesheet" href="/assets/css/genesis.css?v=50" />
+  <link rel="stylesheet" href="/assets/css/intro.css?v=50" />
 </head>
   <body class="transition-enabled">
   <div id="intro" class="intro" data-base="/assets/tape/" aria-label="Intro — abstract drawing animation">
@@ -27,14 +27,25 @@
     <button class="intro__title" type="button" aria-label="Toggle gallery / montage"><span class="intro__brand">1984drum<small>Artworks</small></span><span class="intro__hint intro__hint--gallery"><svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1"/></svg><span>Gallery</span></span><span class="intro__hint intro__hint--montage"><svg viewBox="0 0 24 24"><path d="M7 5l12 7-12 7z"/></svg><span>Montage</span></span></button>
     <div class="intro__caption" aria-live="polite"></div>
     <div class="intro__bar">
-      <button class="intro__play-btn" type="button" aria-label="Play / pause audio" aria-pressed="false">
-        <svg class="intro__ico-play" viewBox="0 0 24 24"><path d="M7 5l12 7-12 7z"/></svg>
-        <svg class="intro__ico-pause" viewBox="0 0 24 24"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>
-      </button>
-      <button class="intro__mute-btn" type="button" aria-label="Mute / unmute audio" aria-pressed="false">
-        <svg class="intro__ico-unmuted" viewBox="0 0 24 24"><path d="M4 9v6h4l5 5V4L8 9H4z"/><path d="M16 8a5 5 0 0 1 0 8M18.5 6a8 8 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-        <svg class="intro__ico-muted" viewBox="0 0 24 24"><path d="M4 9v6h4l5 5V4L8 9H4z"/><path d="M16 9l5 6M21 9l-5 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-      </button>
+      <div class="intro__bar-left">
+        <button class="intro__play-btn" type="button" aria-label="Play / pause audio" aria-pressed="false">
+          <svg class="intro__ico-play" viewBox="0 0 24 24"><path d="M7 5l12 7-12 7z"/></svg>
+          <svg class="intro__ico-pause" viewBox="0 0 24 24"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>
+        </button>
+        <button class="intro__prev-btn" type="button" aria-label="Previous track">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+        </button>
+      </div>
+      <span class="intro__track" aria-live="polite"></span>
+      <div class="intro__bar-right">
+        <button class="intro__next-btn" type="button" aria-label="Next track">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>
+        </button>
+        <button class="intro__mute-btn" type="button" aria-label="Mute / unmute audio" aria-pressed="false">
+          <svg class="intro__ico-unmuted" viewBox="0 0 24 24"><path d="M4 9v6h4l5 5V4L8 9H4z"/><path d="M16 8a5 5 0 0 1 0 8M18.5 6a8 8 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <svg class="intro__ico-muted" viewBox="0 0 24 24"><path d="M4 9v6h4l5 5V4L8 9H4z"/><path d="M16 9l5 6M21 9l-5 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        </button>
+      </div>
     </div>
     <div class="intro__grid" aria-hidden="true">
       <div class="intro__grid-masonry"></div>
@@ -378,7 +389,7 @@ padding-bottom: px;
     </div>
   </div>
 </body>
-  <script src="/assets/js/app.js?v=49"></script>
-  <script src="/assets/js/genesis.js?v=49"></script>
-  <script src="/assets/js/intro.js?v=49"></script>
+  <script src="/assets/js/app.js?v=50"></script>
+  <script src="/assets/js/genesis.js?v=50"></script>
+  <script src="/assets/js/intro.js?v=50"></script>
 </html>

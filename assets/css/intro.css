@@ -36,27 +36,31 @@ body.has-intro .site-container { display: none; }
   background: radial-gradient(120% 120% at 50% 45%, transparent 55%, rgba(0,0,0,.35));
 }
 
-/* ---- bottom control row: sound toggle + scrub bar ---- */
-/* minimal audio player bar — play/pause on the left, mute/unmute on the right */
+/* ---- bottom audio player bar ----
+   Left group: play/pause + (gallery) prev. Centre: track-name word (gallery only).
+   Right group: (gallery) next + mute/unmute. The play button is hidden until the user
+   first unmutes ('audio-engaged'); prev/next + track name only show in the gallery. */
 .intro__bar {
-  position: absolute; left: 0; right: 0; bottom: 0; z-index: 3;
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 5;
   display: flex; align-items: center; justify-content: space-between;
   padding: 16px clamp(16px, 4vw, 40px) calc(16px + env(safe-area-inset-bottom, 0px));
   background: linear-gradient(to top, rgba(0,0,0,.62), rgba(0,0,0,.12) 75%, transparent);
   pointer-events: none;   /* only the buttons catch taps; rest of the bar is pass-through */
 }
-.intro__play-btn, .intro__mute-btn {
+.intro__bar-left, .intro__bar-right { display: flex; align-items: center; gap: 10px; }
+.intro__play-btn, .intro__mute-btn, .intro__prev-btn, .intro__next-btn {
   pointer-events: auto; flex: 0 0 auto;
   width: 48px; height: 48px; border: 0; border-radius: 50%;
   background: rgba(0,0,0,.4); color: #f3ece2; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
-  transition: background .2s ease, transform .08s ease;
+  transition: background .2s ease, transform .08s ease, opacity .25s ease;
   -webkit-tap-highlight-color: transparent;
 }
-.intro__play-btn:hover, .intro__mute-btn:hover { background: rgba(0,0,0,.6); }
-.intro__play-btn:active, .intro__mute-btn:active { transform: scale(.92); }
+.intro__play-btn:hover, .intro__mute-btn:hover, .intro__prev-btn:hover, .intro__next-btn:hover { background: rgba(0,0,0,.6); }
+.intro__play-btn:active, .intro__mute-btn:active, .intro__prev-btn:active, .intro__next-btn:active { transform: scale(.92); }
 .intro__play-btn svg, .intro__mute-btn svg { width: 22px; height: 22px; fill: currentColor; }
+.intro__prev-btn svg, .intro__next-btn svg { width: 22px; height: 22px; }
 /* play/pause icon swap */
 .intro__ico-pause { display: none; }
 .intro__play-btn.is-playing .intro__ico-play { display: none; }
@@ -66,6 +70,23 @@ body.has-intro .site-container { display: none; }
 .intro__mute-btn.is-muted .intro__ico-unmuted { display: none; }
 .intro__mute-btn.is-muted .intro__ico-muted { display: block; }
 .intro__mute-btn.is-muted { color: #ff8a8a; }
+
+/* play button is HIDDEN until the user first unmutes */
+.intro__play-btn { display: none; }
+.intro.audio-engaged .intro__play-btn { display: flex; }
+
+/* the "track name" word + prev/next arrows appear only in the gallery */
+.intro__track {
+  pointer-events: none; color: #f3ece2; opacity: 0;
+  font-family: 'Roboto Slab', serif; font-size: 14px; letter-spacing: 2px;
+  text-transform: uppercase; text-shadow: 0 2px 12px rgba(0,0,0,.8);
+  transition: opacity .3s ease; white-space: nowrap;
+}
+.intro__prev-btn, .intro__next-btn { display: none; }
+.intro.is-grid .intro__prev-btn, .intro.is-grid .intro__next-btn { display: flex; }
+.intro.is-grid .intro__track { opacity: .9; }
+/* in grid view the bar sits above the masonry overlay */
+.intro.is-grid .intro__bar { z-index: 5; }
 
 /* current-piece caption — centred on screen */
 .intro__caption {
@@ -131,8 +152,8 @@ body.has-intro .site-container { display: none; }
 }
 .intro.is-grid .intro__grid { opacity: 1; pointer-events: auto; }
 .intro.is-grid .intro__canvas,
-.intro.is-grid .intro__bar,
 .intro.is-grid .intro__caption { opacity: 0; pointer-events: none; }
+/* keep the player bar visible over the gallery (it gains prev/next + track name there) */
 
 /* CSS columns masonry — flush to the edges, 2px gaps */
 .intro__grid-masonry {
@@ -206,7 +227,8 @@ body.has-intro .site-container { display: none; }
 
 @media (max-width: 540px) {
   .intro__bar { padding: 14px 14px calc(14px + env(safe-area-inset-bottom, 0px)); }
-  .intro__play-btn, .intro__mute-btn { width: 52px; height: 52px; }  /* bigger tap targets on mobile */
+  .intro__play-btn, .intro__mute-btn, .intro__prev-btn, .intro__next-btn { width: 52px; height: 52px; }  /* bigger tap targets on mobile */
+  .intro__track { font-size: 12px; letter-spacing: 2px; }  /* keep the track name clear of the arrows on narrow screens */
   .intro__caption { font-size: 11px; }
   .intro__grid { padding: 72px 12px 32px; }
 }
