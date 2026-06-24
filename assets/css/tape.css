@@ -4,6 +4,18 @@
  * fades in on hover/tap and fades away while you watch. Save-the-mix prompt + the
  * "explode" stay, styled minimally.
  */
+/* short explainer line above the player */
+.tape-intro {
+  text-align: center;
+  margin: 0 auto 14px;
+  max-width: calc((100vh - 120px) * 1.6);
+  color: #555;
+  font-family: 'Roboto Slab', serif;
+  font-size: clamp(13px, 1.6vw, 16px);
+  font-style: italic;
+  letter-spacing: .2px;
+}
+
 /* The stage is ALWAYS a 16:10 box, whatever the device. It takes the full width
  * available but never taller than the viewport, and is centred. */
 .tape-stage {
@@ -126,7 +138,7 @@
     display: flex; align-items: center; justify-content: center;
   }
   .tape-stage canvas { width: auto; height: auto; max-width: 100vw; max-height: 100vh; aspect-ratio: 16 / 10; }
-  .tape-shelf { display: none !important; }
+  .tape-shelf, .tape-intro { display: none !important; }
 }
 
 /* ---- save prompt (full-screen, minimal) ---- */
