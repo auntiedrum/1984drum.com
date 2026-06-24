@@ -192,6 +192,69 @@
     sources = [];
   }
 
+  // ---------- render the CURRENT mix offline -> MP3 -> download ----------
+  // Re-runs the exact same sequence (same seed) in an OfflineAudioContext, mirroring
+  // the live crossfade scheduling, then encodes the result to MP3 with lamejs.
+  function renderMixToMp3(onProgress) {
+    var SR = 44100, CH = 2;
+    var total = MIX_SECONDS;
+    var oac = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(CH, Math.ceil(total * SR), SR);
+    var master = oac.createGain(); master.gain.value = volume;
+    var c = oac.createDynamicsCompressor();
+    c.threshold.value = -12; c.knee.value = 24; c.ratio.value = 3; c.attack.value = 0.012; c.release.value = 0.30;
+    master.connect(c); c.connect(oac.destination);
+    // schedule every segment (speed fixed at 1 for the file)
+    sequence.forEach(function (seg) {
+      var buf = buffers[seg.clip.id];
+      if (!buf) return;
+      var src = oac.createBufferSource(); src.buffer = buf;
+      var g = oac.createGain(); src.connect(g); g.connect(master);
+      var when = seg.startAt;
+      var xf = Math.max(0.25, seg.xfade);
+      g.gain.setValueAtTime(0.0001, when);
+      g.gain.linearRampToValueAtTime(1, when + xf);
+      var fadeOutAt = when + (seg.dur - xf);
+      g.gain.setValueAtTime(1, Math.max(when, fadeOutAt));
+      g.gain.linearRampToValueAtTime(0.0001, fadeOutAt + xf);
+      try { src.start(when, 0, seg.dur); } catch (e) {}
+    });
+    return oac.startRendering().then(function (rendered) {
+      // encode to MP3 (chunked, with progress), then free the buffer
+      return encodeMp3(rendered, onProgress);
+    });
+  }
+
+  function encodeMp3(audioBuffer, onProgress) {
+    return new Promise(function (resolve, reject) {
+      if (typeof lamejs === 'undefined' || !lamejs.Mp3Encoder) { reject(new Error('encoder missing')); return; }
+      var ch = Math.min(2, audioBuffer.numberOfChannels);
+      var L = audioBuffer.getChannelData(0);
+      var R = ch > 1 ? audioBuffer.getChannelData(1) : L;
+      var n = L.length;
+      var enc = new lamejs.Mp3Encoder(2, audioBuffer.sampleRate, 128);
+      var BLOCK = 1152, parts = [], i = 0;
+      function f2i(x) { x = x < -1 ? -1 : x > 1 ? 1 : x; return x < 0 ? x * 0x8000 : x * 0x7FFF; }
+      function step() {
+        var end = Math.min(i + BLOCK * 200, n); // ~200 frames per tick to stay responsive
+        while (i < end) {
+          var len = Math.min(BLOCK, n - i);
+          var lc = new Int16Array(len), rc = new Int16Array(len);
+          for (var k = 0; k < len; k++) { lc[k] = f2i(L[i + k]); rc[k] = f2i(R[i + k]); }
+          var mp3 = enc.encodeBuffer(lc, rc);
+          if (mp3.length) parts.push(new Int8Array(mp3));
+          i += len;
+        }
+        if (onProgress) onProgress(i / n);
+        if (i < n) { setTimeout(step, 0); }
+        else {
+          var last = enc.flush(); if (last.length) parts.push(new Int8Array(last));
+          resolve(new Blob(parts, { type: 'audio/mpeg' }));
+        }
+      }
+      step();
+    });
+  }
+
   // preload buffers for the sequence (first several eagerly, rest in background)
   function preloadSequence() {
     var ids = [];
@@ -377,6 +440,38 @@
   function onFs() { root.classList.toggle('is-fullscreen', !!(document.fullscreenElement === root || document.webkitFullscreenElement === root)); fitCanvas(); }
   document.addEventListener('fullscreenchange', onFs);
   document.addEventListener('webkitfullscreenchange', onFs);
+
+  // ---------- download the current mix as MP3 ----------
+  var btnDl = root.querySelector('.tape-dl');
+  var downloading = false;
+  function downloadCurrentMix() {
+    if (downloading) return;
+    if (!started || !sequence.length) { setStatus('PRESS PLAY FIRST'); return; }
+    downloading = true;
+    if (btnDl) btnDl.classList.add('is-busy');
+    var wasStatus = elStatus ? elStatus.textContent : '';
+    setStatus('PREP 0%');
+    // make sure every clip in the sequence is decoded before offline render
+    var ids = []; sequence.forEach(function (s) { if (ids.indexOf(s.clip.id) < 0) ids.push(s.clip.id); });
+    Promise.all(ids.map(function (id) { return loadBuffer(id).catch(function () {}); }))
+      .then(function () {
+        setStatus('RENDERING…');
+        return renderMixToMp3(function (p) { setStatus('ENCODING ' + Math.round(p * 100) + '%'); });
+      })
+      .then(function (blob) {
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        var name = 'pete-tape-' + String(seedCur >>> 0) + '.mp3';
+        a.href = url; a.download = name;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+        setStatus('DOWNLOADED');
+        setTimeout(function () { if (elStatus && elStatus.textContent === 'DOWNLOADED') setStatus(playing ? 'PLAY' : 'PAUSE'); }, 2500);
+      })
+      .catch(function (e) { setStatus('DL FAILED'); })
+      .then(function () { downloading = false; if (btnDl) btnDl.classList.remove('is-busy'); });
+  }
+  if (btnDl) btnDl.addEventListener('click', function (e) { e.stopPropagation(); downloadCurrentMix(); });
 
   // ---------- seek bar: click / drag to skip through the mix ----------
   var seek = root.querySelector('.tape-bar__seek');

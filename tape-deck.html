@@ -12,11 +12,11 @@
         <link rel="apple-touch-icon" href="/assets/img/014472dc-ac3d-4c42-96b3-16a013966c35_carw_1x1x180.png" />
     <link rel="canonical" href="https://1984drum.com/tape-deck" />
       <title>1984drum Artist Portfolio - Tape Deck</title>
-  <link rel="stylesheet" href="/assets/css/fonts.css?v=15" />
-  <link rel="stylesheet" href="/assets/css/main.css?v=15" />
-  <link rel="stylesheet" href="/assets/css/theme.css?v=15" />
-  <link rel="stylesheet" href="/assets/css/app.css?v=15" />
-  <link rel="stylesheet" href="/assets/css/tape.css?v=15" />
+  <link rel="stylesheet" href="/assets/css/fonts.css?v=16" />
+  <link rel="stylesheet" href="/assets/css/main.css?v=16" />
+  <link rel="stylesheet" href="/assets/css/theme.css?v=16" />
+  <link rel="stylesheet" href="/assets/css/app.css?v=16" />
+  <link rel="stylesheet" href="/assets/css/tape.css?v=16" />
 </head>
   <body class="transition-enabled">
   <div class="js-responsive-nav">
@@ -69,7 +69,8 @@
       <div class="site-content">
         <main>
   <div class="tape-page">
-    <p class="tape-intro">Random amalgamation of Pete&rsquo;s music and visual art.</p>
+    <p class="tape-intro">Random amalgamation of Pete&rsquo;s music and visual art.<br>
+      <span class="tape-cc">Free to download &amp; share &mdash; <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noopener">Creative Commons (CC0)</a>.</span></p>
     <div id="tape-deck" class="tape-stage" data-base="/assets/tape/">
       <canvas class="tape-stage__canvas" width="1280" height="720"></canvas>
       <div class="tape-stage__idle">
@@ -87,6 +88,9 @@
           <div class="tape-bar__seek-track"><div class="tape-bar__seek-fill"></div><div class="tape-bar__seek-knob"></div></div>
         </div>
         <span class="bb__status tape-bar__status">INSERT TAPE</span>
+        <button class="tape-bar__btn tape-dl" type="button" aria-label="Download this mix" title="Download this mix (MP3)">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10m0 0l-4-4m4 4l4-4M5 19h14" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+        </button>
         <button class="tape-bar__btn tape-fs" type="button" aria-label="Fullscreen" title="Fullscreen">
           <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 9V4h5v2H6v3H4zm0 6h2v3h3v2H4v-5zm16 0v5h-5v-2h3v-3h2zM20 9h-2V6h-3V4h5v5z"/></svg>
         </button>
@@ -117,6 +121,7 @@
     </div>
   </div>
 </body>
-  <script src="/assets/js/app.js?v=15"></script>
-  <script src="/assets/js/tape.js?v=15"></script>
+  <script src="/assets/js/app.js?v=16"></script>
+  <script src="/assets/js/lame.min.js"></script>
+  <script src="/assets/js/tape.js?v=16"></script>
 </html>

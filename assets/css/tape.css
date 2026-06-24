@@ -14,7 +14,16 @@
   font-size: clamp(13px, 1.6vw, 16px);
   font-style: italic;
   letter-spacing: .2px;
+  line-height: 1.5;
 }
+.tape-cc { font-size: 12px; font-style: normal; color: #888; }
+.tape-cc a { color: #888; text-decoration: underline; }
+.tape-cc a:hover { color: #555; }
+
+/* download button: spins while rendering/encoding */
+.tape-dl.is-busy { pointer-events: none; }
+.tape-dl.is-busy svg { animation: tape-dl-spin 1s linear infinite; }
+@keyframes tape-dl-spin { to { transform: rotate(360deg); } }
 
 /* The stage is ALWAYS a 16:10 box, whatever the device. It takes the full width
  * available but never taller than the viewport, and is centred. */
