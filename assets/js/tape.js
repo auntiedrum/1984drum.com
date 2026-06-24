@@ -63,12 +63,7 @@
   var elVU = root.querySelector('.bb__vu');
   var btnPlay = root.querySelector('.bb__btn--play');
   var btnNew = root.querySelector('.bb__btn--new');
-  var volRange = root.querySelector('[data-ctl="volume"]');
-  var spdRange = root.querySelector('[data-ctl="speed"]');
-  var volOut = root.querySelector('[data-out="volume"]');
-  var spdOut = root.querySelector('[data-out="speed"]');
   var idle = root.querySelector('.tape-stage__idle');
-  var progFill = root.querySelector('.tape-bar__prog i');
   var btnFs = root.querySelector('.tape-fs');
 
   // ---------- load manifests ----------
@@ -297,7 +292,7 @@
     if (elapsed >= MIX_SECONDS) { finishMix(); return; }
     renderVisual(elapsed);
     elTime.textContent = fmt(elapsed) + ' / ' + fmt(MIX_SECONDS);
-    if (progFill) progFill.style.width = (elapsed / MIX_SECONDS * 100).toFixed(2) + '%';
+    setSeekUI(elapsed / MIX_SECONDS);
   }
   // drive with rAF when it's running (smooth) AND a timer fallback (survives rAF
   // throttling, e.g. a backgrounded tab — the audio keeps playing regardless).
@@ -383,18 +378,73 @@
   document.addEventListener('fullscreenchange', onFs);
   document.addEventListener('webkitfullscreenchange', onFs);
 
-  // volume + speed
-  function applyVolume() { if (masterGain) masterGain.gain.setTargetAtTime(volume, ctx.currentTime, 0.02); }
-  volRange.addEventListener('input', function () {
-    volume = parseFloat(volRange.value); volOut.textContent = Math.round(volume * 100) + '%'; applyVolume();
-  });
-  spdRange.addEventListener('input', function () {
-    var was = playing ? (ctx.currentTime - t0) * speed : offset;
-    speed = parseFloat(spdRange.value); spdOut.textContent = speed.toFixed(2) + '×';
-    sources.forEach(function (s) { try { s.playbackRate.setTargetAtTime(speed, ctx.currentTime, 0.05); } catch (e) {} });
-    // reschedule so timing stays correct at the new rate
-    if (playing) { offset = was; schedule(offset); }
-  });
+  // ---------- seek bar: click / drag to skip through the mix ----------
+  var seek = root.querySelector('.tape-bar__seek');
+  var seekFill = root.querySelector('.tape-bar__seek-fill');
+  var seekKnob = root.querySelector('.tape-bar__seek-knob');
+  function setSeekUI(frac) {
+    frac = Math.max(0, Math.min(1, frac));
+    if (seekFill) seekFill.style.width = (frac * 100) + '%';
+    if (seekKnob) seekKnob.style.left = (frac * 100) + '%';
+    if (seek) seek.setAttribute('aria-valuenow', Math.round(frac * 100));
+  }
+  function seekTo(sec) {
+    sec = Math.max(0, Math.min(MIX_SECONDS - 0.5, sec));
+    offset = sec;
+    setSeekUI(sec / MIX_SECONDS);
+    elTime.textContent = fmt(sec) + ' / ' + fmt(MIX_SECONDS);
+    // jump the art to the right mood for the new position
+    vis = { cur: null, curKB: null, curBorn: 0, next: null, nextKB: null, nextStart: 0, lastSwap: 0 };
+    if (started && !ended) {
+      // load any clips needed around the new position, then reschedule from there
+      ensureBuffersAround(sec).then(function () {
+        if (playing) { schedule(sec); }   // resume from new point (t0 re-anchored in schedule)
+        else { /* stay paused but remember new offset */ }
+        renderVisual(sec);
+      });
+    }
+  }
+  // make sure the clips overlapping `sec` are decoded before we schedule from there
+  function ensureBuffersAround(sec) {
+    var need = [];
+    sequence.forEach(function (s) {
+      if (s.startAt < sec + 8 && s.startAt + s.dur > sec - 1 && !buffers[s.clip.id]) need.push(s.clip.id);
+    });
+    return Promise.all(need.map(function (id) { return loadBuffer(id).catch(function () {}); }));
+  }
+  if (seek) {
+    var dragging = false;
+    function fracFromEvent(e) {
+      var r = seek.getBoundingClientRect();
+      var x = (e.clientX != null ? e.clientX : (e.touches && e.touches[0] ? e.touches[0].clientX : 0));
+      return (x - r.left) / r.width;
+    }
+    seek.addEventListener('pointerdown', function (e) {
+      e.stopPropagation(); dragging = true; seek.classList.add('is-dragging');
+      try { seek.setPointerCapture(e.pointerId); } catch (x) {}
+      setSeekUI(fracFromEvent(e));
+    });
+    seek.addEventListener('pointermove', function (e) {
+      if (!dragging) return;
+      setSeekUI(fracFromEvent(e));
+    });
+    function endDrag(e) {
+      if (!dragging) return;
+      dragging = false; seek.classList.remove('is-dragging');
+      seekTo(Math.max(0, Math.min(1, fracFromEvent(e))) * MIX_SECONDS);
+    }
+    seek.addEventListener('pointerup', endDrag);
+    seek.addEventListener('pointercancel', endDrag);
+    // keyboard: arrows nudge ±10s, Home/End jump
+    seek.addEventListener('keydown', function (e) {
+      if (!started) return;
+      var cur = playing ? (ctx.currentTime - t0) * speed : offset;
+      if (e.key === 'ArrowRight') { e.preventDefault(); seekTo(cur + 10); }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); seekTo(cur - 10); }
+      else if (e.key === 'Home') { e.preventDefault(); seekTo(0); }
+      else if (e.key === 'End') { e.preventDefault(); seekTo(MIX_SECONDS - 30); }
+    });
+  }
 
   // ---------- finish + ephemeral save ----------
   function finishMix() {
@@ -473,9 +523,7 @@
   }
   function escapeHtml(s) { return String(s).replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); }
 
-  // init control labels + shelf
-  volRange.value = volume; volOut.textContent = Math.round(volume * 100) + '%';
-  spdRange.value = speed; spdOut.textContent = speed.toFixed(2) + '×';
+  // init
   setPlayIcon(false);
   renderShelf();
 })();
