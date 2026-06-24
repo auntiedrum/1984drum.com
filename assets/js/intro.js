@@ -280,62 +280,14 @@
   var idx = 0;                 // current item index
   var vis = { cur: null, curKB: null, curBorn: 0, next: null, nextIdx: 0, nextKB: null, nextStart: 0 };
   var SWAP_EVERY = 4.0;        // reveal more work (~4s/piece)
-  var TWIN_HOLD = 7.0;         // the twins linger so the joke lands
   var KB_SPAN = SWAP_EVERY + 1.5;
   var spliceAt = -1;           // ctx-clock time of the last cut (for the splice flicker)
   var clock = 0, lastT = 0, visTimer = null;
   var scrubbing = false;
 
-  // ---- easter egg: "the twins" — two near-identical seated-figure studies. When either
-  // surfaces, show BOTH side by side with a cheeky caption (one's pencil, one's "annoying").
-  var TWIN_A = '6ed2086c-98d9-4a49-90e6-aaf537ba9ec7';
-  var TWIN_B = '691beeb3-0b0a-4ee2-8017-9225609b4cd1';
-  function isTwin(item) {
-    if (!item || item.video || !item.disp) return false;
-    return item.disp.indexOf(TWIN_A) >= 0 || item.disp.indexOf(TWIN_B) >= 0;
-  }
-  function twinItem(which) {
-    for (var i = 0; i < gallery.length; i++) {
-      var g = gallery[i];
-      if (g.disp && g.disp.indexOf(which) >= 0) return g;
-    }
-    return null;
-  }
-
   function setCaption(item) {
-    if (!capEl || !item) return;
-    // minimal: no category labels. Only the twins easter egg shows its one-off caption.
-    capEl.textContent = isTwin(item) ? 'THE TWINS — spot the difference (there isn’t one)' : '';
-  }
-
-  // draw both twins side by side, each contain-fitted into its half, with a film divider.
-  function drawTwins(alpha, clipR) {
-    var a = twinItem(TWIN_A), b = twinItem(TWIN_B);
-    var ma = a && getMedia(a), mb = b && getMedia(b);
-    cctx.save();
-    if (clipR != null) { cctx.beginPath(); cctx.arc(W / 2, H / 2, Math.max(0.001, clipR), 0, Math.PI * 2); cctx.clip(); }
-    cctx.globalAlpha = alpha; cctx.fillStyle = '#06100c'; cctx.fillRect(0, 0, W, H);
-    if (cctx.filter !== undefined) cctx.filter = GRADE;
-    function half(m, x0, label) {
-      if (!m || !(m.complete && m.naturalWidth)) return;
-      var halfW = W / 2 - 6, ir = m.naturalWidth / m.naturalHeight, br = halfW / H, bw, bh;
-      if (ir > br) { bw = halfW; bh = halfW / ir; } else { bh = H * 0.86; bw = bh * ir; }
-      var bx = x0 + (halfW - bw) / 2, by = (H - bh) / 2;
-      cctx.globalAlpha = alpha;
-      try { cctx.drawImage(m, bx, by, bw, bh); } catch (e) {}
-    }
-    half(ma, 0);
-    half(mb, W / 2 + 6);
-    cctx.restore();
-    // little "annoying twin" tag under the right one
-    cctx.save();
-    cctx.globalAlpha = alpha * 0.9;
-    cctx.fillStyle = 'rgba(243,236,226,0.85)';
-    cctx.font = '600 13px "Roboto Slab", serif';
-    cctx.textAlign = 'center';
-    cctx.fillText('the pencil one', W * 0.25, H - 26);
-    cctx.fillText('…the annoying one', W * 0.75, H - 26);
-    cctx.restore();
+    if (!capEl) return;
+    capEl.textContent = '';   // minimal: no captions on the montage
   }
   function preloadAround(i) {
     for (var d = 1; d <= 2; d++) {
@@ -355,7 +307,6 @@
     // the piece that will be revealed BEHIND the current one if its handheld movement
     // exposes a frame edge (so the margin shows the next image, never black).
     var ni = (i + 1) % gallery.length;
-    if (isTwin(gallery[i]) && isTwin(gallery[ni])) ni = (ni + 1) % gallery.length;
     backIdx = ni; backMedia = getMedia(gallery[ni]);
     spliceAt = now;
     setCaption(gallery[i]); preloadAround(i);
@@ -384,20 +335,15 @@
     if (landing.active) { drawLanding(now); return; }
     // first piece: splice it in
     if (!vis.cur) { cutTo(0, now); }
-    // advance automatically (unless scrubbing). Hard CUT to the next — no transition, like a
-    // splice. Twins linger longer; skip the 2nd twin if adjacent (no double gag).
-    var hold = isTwin(gallery[idx]) ? TWIN_HOLD : SWAP_EVERY;
-    if (!scrubbing && (now - vis.curBorn) > hold) {
-      var ni = (idx + 1) % gallery.length;
-      if (isTwin(gallery[idx]) && isTwin(gallery[ni])) ni = (ni + 1) % gallery.length;
-      cutTo(ni, now);
+    // advance automatically (unless scrubbing). Hard CUT to the next — no transition, like a splice.
+    if (!scrubbing && (now - vis.curBorn) > SWAP_EVERY) {
+      cutTo((idx + 1) % gallery.length, now);
     }
     // backing layer: the NEXT piece, static & full-cover, so any edge the current piece's
     // handheld movement exposes reveals the upcoming image rather than black.
-    if (backMedia && !isTwin(gallery[idx])) drawStaticCover(backMedia);
-    // draw the current piece on top, full-frame with its handheld motion (twins egg shows both)
-    if (isTwin(gallery[idx])) drawTwins(1, null);
-    else drawCover(vis.cur, vis.curKB, Math.min(1, (now - vis.curBorn) / KB_SPAN), 1);
+    if (backMedia) drawStaticCover(backMedia);
+    // draw the current piece on top, full-frame with its handheld motion
+    drawCover(vis.cur, vis.curKB, Math.min(1, (now - vis.curBorn) / KB_SPAN), 1);
     // the 70s film vibe over everything: grain, vignette, lamp flicker — plus the splice flash
     drawFilmOverlay(now);
     drawSplice(now);
