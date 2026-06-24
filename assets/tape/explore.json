@@ -49,14 +49,6 @@
    "energy": 0.3
   },
   {
-   "disp": "/assets/img/23f465da-3fa2-48e2-b486-30ec61135a8d_rw_1920.jpg",
-   "full": "/assets/img/23f465da-3fa2-48e2-b486-30ec61135a8d_rw_1920.jpg",
-   "w": 1461,
-   "h": 1722,
-   "category": "Sketchbook",
-   "energy": 0.3
-  },
-  {
    "full": "/assets/tape/video/draw1.mp4",
    "disp": "/assets/tape/video/draw1.mp4",
    "webm": "/assets/tape/video/draw1.webm",
@@ -65,6 +57,14 @@
    "h": 450,
    "category": "Drawing time-lapse",
    "energy": 0.4
+  },
+  {
+   "disp": "/assets/img/23f465da-3fa2-48e2-b486-30ec61135a8d_rw_1920.jpg",
+   "full": "/assets/img/23f465da-3fa2-48e2-b486-30ec61135a8d_rw_1920.jpg",
+   "w": 1461,
+   "h": 1722,
+   "category": "Sketchbook",
+   "energy": 0.3
   },
   {
    "disp": "/assets/img/072530e2-3e19-41bb-a1ce-cf920c65a6ee_rw_1920.jpg",
@@ -107,6 +107,16 @@
    "energy": 0.3
   },
   {
+   "full": "/assets/tape/video/draw2.mp4",
+   "disp": "/assets/tape/video/draw2.mp4",
+   "webm": "/assets/tape/video/draw2.webm",
+   "video": true,
+   "w": 720,
+   "h": 450,
+   "category": "Drawing time-lapse",
+   "energy": 0.4
+  },
+  {
    "disp": "/assets/img/dead7c75-fd5f-492c-b1d5-3f611a13c2ce_rw_1920.jpg",
    "full": "/assets/img/dead7c75-fd5f-492c-b1d5-3f611a13c2ce_rw_1920.jpg",
    "w": 1512,
@@ -121,16 +131,6 @@
    "h": 742,
    "category": "Sketchbook",
    "energy": 0.3
-  },
-  {
-   "full": "/assets/tape/video/draw2.mp4",
-   "disp": "/assets/tape/video/draw2.mp4",
-   "webm": "/assets/tape/video/draw2.webm",
-   "video": true,
-   "w": 720,
-   "h": 450,
-   "category": "Drawing time-lapse",
-   "energy": 0.4
   },
   {
    "disp": "/assets/img/d08c561f-6cc8-4df2-81d9-43434aa7adad_rw_1920.jpg",
@@ -165,6 +165,16 @@
    "energy": 0.3
   },
   {
+   "full": "/assets/tape/video/draw3.mp4",
+   "disp": "/assets/tape/video/draw3.mp4",
+   "webm": "/assets/tape/video/draw3.webm",
+   "video": true,
+   "w": 720,
+   "h": 450,
+   "category": "Drawing time-lapse",
+   "energy": 0.4
+  },
+  {
    "disp": "/assets/img/pmc-treehouse-ink-2.jpg",
    "full": "/assets/img/pmc-treehouse-ink-2.jpg",
    "w": 559,
@@ -189,82 +199,6 @@
    "energy": 0.3
   },
   {
-   "full": "/assets/tape/video/draw3.mp4",
-   "disp": "/assets/tape/video/draw3.mp4",
-   "webm": "/assets/tape/video/draw3.webm",
-   "video": true,
-   "w": 720,
-   "h": 450,
-   "category": "Drawing time-lapse",
-   "energy": 0.4
-  },
-  {
-   "disp": "/assets/img/1ca24669-0a7f-4fd4-a9e8-54c2cc439ea2_rw_1920.jpg",
-   "full": "/assets/img/1ca24669-0a7f-4fd4-a9e8-54c2cc439ea2_rw_1920.jpg",
-   "w": 1920,
-   "h": 2614,
-   "category": "Fragments of Infinity",
-   "energy": 0.45
-  },
-  {
-   "disp": "/assets/img/662cf18e-57e8-4689-aa90-1601c4d494ea.jpg",
-   "full": "/assets/img/662cf18e-57e8-4689-aa90-1601c4d494ea.jpg",
-   "w": 1200,
-   "h": 2025,
-   "category": "Fragments of Infinity",
-   "energy": 0.45
-  },
-  {
-   "disp": "/assets/img/e58ce257-81a7-4988-91ae-12a0144b59b6_rw_1920.jpg",
-   "full": "/assets/img/e58ce257-81a7-4988-91ae-12a0144b59b6_rw_1920.jpg",
-   "w": 1920,
-   "h": 1080,
-   "category": "Fragments of Infinity",
-   "energy": 0.45
-  },
-  {
-   "disp": "/assets/img/d56da2e6-dbc8-47e2-91f8-90103496ed7e_rw_1920.jpg",
-   "full": "/assets/img/d56da2e6-dbc8-47e2-91f8-90103496ed7e_rw_1920.jpg",
-   "w": 1536,
-   "h": 2560,
-   "category": "Fragments of Infinity",
-   "energy": 0.45
-  },
-  {
-   "disp": "/assets/img/f22a1460-8620-420e-b6a5-e877b76f9b07_rw_1920.jpg",
-   "full": "/assets/img/f22a1460-8620-420e-b6a5-e877b76f9b07_rw_1920.jpg",
-   "w": 1843,
-   "h": 1037,
-   "category": "Fragments of Infinity",
-   "energy": 0.45
-  },
-  {
-   "disp": "/assets/img/672185bc-aedd-4e3f-b598-d61d3d691c3a_rw_1920.jpg",
-   "full": "/assets/img/672185bc-aedd-4e3f-b598-d61d3d691c3a_rw_1920.jpg",
-   "w": 1920,
-   "h": 1346,
-   "category": "Fragments of Infinity 2021",
-   "energy": 0.5
-  },
-  {
-   "disp": "/assets/img/2bf19340-1418-4dc8-bbde-3e9f0a21d37e_rw_1920.png",
-   "full": "/assets/img/2bf19340-1418-4dc8-bbde-3e9f0a21d37e_rw_1920.png",
-   "w": 1920,
-   "h": 1080,
-   "category": "Fragments of Infinity 2021",
-   "energy": 0.5
-  },
-  {
-   "full": "/assets/tape/video/draw4.mp4",
-   "disp": "/assets/tape/video/draw4.mp4",
-   "webm": "/assets/tape/video/draw4.webm",
-   "video": true,
-   "w": 720,
-   "h": 450,
-   "category": "Drawing time-lapse",
-   "energy": 0.4
-  },
-  {
    "disp": "/assets/img/0c36ac33-7c8b-488d-b443-1ff74fba361e.jpg",
    "full": "/assets/img/0c36ac33-7c8b-488d-b443-1ff74fba361e.jpg",
    "w": 1200,
@@ -287,6 +221,16 @@
    "h": 1712,
    "category": "Early Work",
    "energy": 0.5
+  },
+  {
+   "full": "/assets/tape/video/draw4.mp4",
+   "disp": "/assets/tape/video/draw4.mp4",
+   "webm": "/assets/tape/video/draw4.webm",
+   "video": true,
+   "w": 720,
+   "h": 450,
+   "category": "Drawing time-lapse",
+   "energy": 0.4
   },
   {
    "disp": "/assets/img/dad5fb3a-aa3a-4cf8-9952-044024a9ddcf_rw_1920.jpg",
@@ -321,16 +265,6 @@
    "energy": 0.5
   },
   {
-   "full": "/assets/tape/video/draw5.mp4",
-   "disp": "/assets/tape/video/draw5.mp4",
-   "webm": "/assets/tape/video/draw5.webm",
-   "video": true,
-   "w": 720,
-   "h": 450,
-   "category": "Drawing time-lapse",
-   "energy": 0.4
-  },
-  {
    "disp": "/assets/img/85ab93f8-9cea-4820-b830-2940c691751b_rw_1920.jpg",
    "full": "/assets/img/85ab93f8-9cea-4820-b830-2940c691751b_rw_1920.jpg",
    "w": 1448,
@@ -345,6 +279,16 @@
    "h": 1113,
    "category": "Early Work",
    "energy": 0.5
+  },
+  {
+   "full": "/assets/tape/video/draw5.mp4",
+   "disp": "/assets/tape/video/draw5.mp4",
+   "webm": "/assets/tape/video/draw5.webm",
+   "video": true,
+   "w": 720,
+   "h": 450,
+   "category": "Drawing time-lapse",
+   "energy": 0.4
   },
   {
    "disp": "/assets/img/pmc-venus-painting.jpg",
@@ -387,6 +331,14 @@
    "energy": 0.55
   },
   {
+   "disp": "/assets/img/bc7afb63-23fa-43fc-b889-6e5b04d2eb9f.jpg",
+   "full": "/assets/img/bc7afb63-23fa-43fc-b889-6e5b04d2eb9f.jpg",
+   "w": 450,
+   "h": 538,
+   "category": "Art Studies",
+   "energy": 0.55
+  },
+  {
    "full": "/assets/tape/video/draw6.mp4",
    "disp": "/assets/tape/video/draw6.mp4",
    "webm": "/assets/tape/video/draw6.webm",
@@ -395,14 +347,6 @@
    "h": 450,
    "category": "Drawing time-lapse",
    "energy": 0.4
-  },
-  {
-   "disp": "/assets/img/bc7afb63-23fa-43fc-b889-6e5b04d2eb9f.jpg",
-   "full": "/assets/img/bc7afb63-23fa-43fc-b889-6e5b04d2eb9f.jpg",
-   "w": 450,
-   "h": 538,
-   "category": "Art Studies",
-   "energy": 0.55
   },
   {
    "disp": "/assets/img/ee1c3407-47a9-49d4-a8f7-14b498b1e2d4.jpg",
@@ -511,14 +455,6 @@
    "energy": 0.55
   },
   {
-   "disp": "/assets/img/pmc-dragon-creature-study.jpg",
-   "full": "/assets/img/pmc-dragon-creature-study.jpg",
-   "w": 1024,
-   "h": 672,
-   "category": "Art Studies",
-   "energy": 0.55
-  },
-  {
    "full": "/assets/tape/video/draw8.mp4",
    "disp": "/assets/tape/video/draw8.mp4",
    "webm": "/assets/tape/video/draw8.webm",
@@ -527,6 +463,14 @@
    "h": 450,
    "category": "Drawing time-lapse",
    "energy": 0.4
+  },
+  {
+   "disp": "/assets/img/pmc-dragon-creature-study.jpg",
+   "full": "/assets/img/pmc-dragon-creature-study.jpg",
+   "w": 1024,
+   "h": 672,
+   "category": "Art Studies",
+   "energy": 0.55
   },
   {
    "disp": "/assets/img/pmc-creature-sketch.jpg",
@@ -562,8 +506,9 @@
   }
  ],
  "counts": {
-  "artworks": 60,
+  "artworks": 53,
   "clips": 8,
-  "total": 68
+  "total": 61,
+  "droppedAItreehouses": 7
  }
 }
