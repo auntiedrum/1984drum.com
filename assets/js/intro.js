@@ -121,44 +121,34 @@
     // (~0.8–1.05) get a calm smooth downward drift.
     var strongRoll = imgAR < 0.8;
 
-    var speed = 1 + Math.min(1.6, (overflowRatio - 1) * 2.2);    // up to ~2.6x faster
-    var tt = Math.min(1, t * speed);
-
     var ir = mW(m) / mH(m), br = W / H, bw, bh;
     if (ir > br) { bh = H; bw = H * ir; } else { bw = W; bh = W / ir; }
-    // for near-square pieces that read down, zoom a touch more so there's room to travel
-    var zBoost = (readsDown && !strongRoll) ? 0.10 : 0;
-    var z = k.z0 + (k.z1 - k.z0) * tt + zBoost;
+    var z = k.z0 + (k.z1 - k.z0) * t;
     var dw = bw * z, dh = bh * z;
     var maxY = (dh - H) / 2, maxX = (dw - W) / 2;
     var panX, panY;
 
+    // Motion is now GENTLE: the iris reveal does the "arrival"; the dwell only drifts a
+    // little. Reads top -> bottom but covers a calm fraction of the height, not a full sweep.
     if (readsDown && maxY > 2) {
-      // --- TOP -> BOTTOM read: start at the top edge, glide down through the piece ---
-      var prog = t;                                   // 0..1 across the dwell
-      var eased = prog < 0.85 ? (prog / 0.85) : 1;    // ease/settle in the last 15%
-      eased = eased * eased * (3 - 2 * eased);         // smoothstep base
+      var eased = t * t * (3 - 2 * t);                 // smoothstep across the dwell
+      // start a touch above centre, drift gently downward — a small fraction of the range
+      var startFrac = 0.42, travelFrac = strongRoll ? 0.62 : 0.40;  // calmer than before
+      panY = maxY * startFrac - eased * (maxY * travelFrac);
       if (strongRoll) {
-        // stepped + jittered analogue film-roll (genuinely tall pieces)
-        var STEPS = 14;
-        var stepped = Math.round(eased * STEPS) / STEPS;
-        var jit = (Math.sin(t * 47.0 + k.dir) * 0.5 + Math.sin(t * 23.3) * 0.5) * (dh * 0.006) * k.jitter;
-        var rollKick = Math.sin(stepped * STEPS * 3.7) * (dh * 0.004);
-        panY = maxY - stepped * (maxY * 1.92) + jit + rollKick;
-      } else {
-        // calm smooth downward drift (shorter / near-square pieces)
-        panY = maxY - eased * (maxY * 1.9);
+        // faint analogue judder, much smaller than before so it's subtle not busy
+        var jit = (Math.sin(t * 39.0 + k.dir) * 0.5 + Math.sin(t * 19.7) * 0.5) * (dh * 0.0025) * k.jitter;
+        panY += jit;
       }
       panY = Math.max(-maxY, Math.min(maxY, panY));
-      // tiny horizontal weave so it's not a dead-straight slide
-      panX = Math.sin(t * 1.7) * (maxX * 0.12 + W * 0.004);
+      panX = Math.sin(t * 1.3) * (maxX * 0.06);        // barely-there horizontal sway
       panX = Math.max(-maxX, Math.min(maxX, panX));
     } else {
-      // --- floaty cropped-aware pan (wide / fitting pieces) ---
+      // wide / fitting pieces: very gentle floaty drift
       var overX = Math.max(0, dw - W), overY = Math.max(0, dh - H);
-      var travelX = (Math.min(overX, W * 0.6) * 0.85 + W * 0.03) * k.jitter;
-      var travelY = (Math.min(overY, H * 0.6) * 0.85 + H * 0.03) * k.jitter;
-      var phase = tt - 0.5;
+      var travelX = (Math.min(overX, W * 0.4) * 0.35 + W * 0.015) * k.jitter;
+      var travelY = (Math.min(overY, H * 0.4) * 0.35 + H * 0.015) * k.jitter;
+      var phase = (t - 0.5) * 0.7;
       panX = Math.cos(k.dir) * travelX * phase;
       panY = Math.sin(k.dir) * travelY * phase;
       panX = Math.max(-maxX, Math.min(maxX, panX));
@@ -231,9 +221,9 @@
   // timeline state: a current index into `gallery`, with Ken-Burns + dissolve between items.
   var idx = 0;                 // current item index
   var vis = { cur: null, curKB: null, curBorn: 0, next: null, nextIdx: 0, nextKB: null, nextStart: 0 };
-  var SWAP_EVERY = 4.0;        // brisk — reveal more work faster (~4s/piece)
-  var DISSOLVE = 1.1;
-  var KB_SPAN = SWAP_EVERY + DISSOLVE + 1.5;
+  var SWAP_EVERY = 4.0;        // reveal more work (~4s/piece)
+  var IRIS_TIME = 1.3;         // seconds for the iris to bloom open from the centre
+  var KB_SPAN = SWAP_EVERY + IRIS_TIME + 1.5;
   var clock = 0, lastT = 0, visTimer = null;
   var scrubbing = false;
 
@@ -261,17 +251,31 @@
     if (!gallery.length) return;
     cctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     cctx.clearRect(0, 0, W, H);
-    if (!vis.cur) { gotoIndex(0, now); }
+    // first piece: iris it in from black (set it as the incoming, with no current)
+    if (!vis.cur && !vis.next) {
+      idx = 0; vis.nextIdx = 0;
+      vis.next = getMedia(gallery[0]); vis.nextKB = kb(); vis.nextStart = now;
+      vis.curBorn = now; setCaption(gallery[0]); preloadAround(0);
+    }
     // advance automatically (unless actively scrubbing)
-    if (!scrubbing && !vis.next && (now - vis.curBorn) > SWAP_EVERY) {
+    if (!scrubbing && vis.cur && !vis.next && (now - vis.curBorn) > SWAP_EVERY) {
       vis.nextIdx = (idx + 1) % gallery.length;
       vis.next = getMedia(gallery[vis.nextIdx]); vis.nextKB = kb(); vis.nextStart = now;
     }
     drawCover(vis.cur, vis.curKB, Math.min(1, (now - vis.curBorn) / KB_SPAN), 1);
     if (vis.next) {
-      var p = Math.min(1, (now - vis.nextStart) / DISSOLVE);
-      var e = p * p * (3 - 2 * p);
-      drawCover(vis.next, vis.nextKB, Math.min(1, (now - vis.nextStart) / KB_SPAN), e);
+      // IRIS REVEAL: the incoming piece blooms out from a point in the centre — a circle
+      // that expands to fill the frame (with a soft edge), like a film iris opening.
+      var p = Math.min(1, (now - vis.nextStart) / IRIS_TIME);
+      var e = p * p * (3 - 2 * p);                       // smoothstep
+      var maxR = Math.sqrt(W * W + H * H) / 2;            // reach the corners at full open
+      var r = e * maxR * 1.02;
+      cctx.save();
+      cctx.beginPath();
+      cctx.arc(W / 2, H / 2, Math.max(0.001, r), 0, Math.PI * 2);
+      cctx.clip();
+      drawCover(vis.next, vis.nextKB, Math.min(1, (now - vis.nextStart) / KB_SPAN), 1);
+      cctx.restore();
       if (p >= 1) {
         idx = vis.nextIdx;
         vis.cur = vis.next; vis.curKB = vis.nextKB; vis.curBorn = vis.nextStart; vis.next = null;
