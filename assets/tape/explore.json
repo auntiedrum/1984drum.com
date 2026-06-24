@@ -25,6 +25,16 @@
    "energy": 0.3
   },
   {
+   "full": "/assets/tape/video/draw1.mp4",
+   "disp": "/assets/tape/video/draw1.mp4",
+   "webm": "/assets/tape/video/draw1.webm",
+   "video": true,
+   "w": 720,
+   "h": 450,
+   "category": "Drawing time-lapse",
+   "energy": 0.4
+  },
+  {
    "disp": "/assets/img/d3222939-c8f0-4517-a193-d603af588a94_rw_1920.jpg",
    "full": "/assets/img/d3222939-c8f0-4517-a193-d603af588a94_rw_1920.jpg",
    "w": 1481,
@@ -49,9 +59,9 @@
    "energy": 0.3
   },
   {
-   "full": "/assets/tape/video/draw1.mp4",
-   "disp": "/assets/tape/video/draw1.mp4",
-   "webm": "/assets/tape/video/draw1.webm",
+   "full": "/assets/tape/video/draw2.mp4",
+   "disp": "/assets/tape/video/draw2.mp4",
+   "webm": "/assets/tape/video/draw2.webm",
    "video": true,
    "w": 720,
    "h": 450,
@@ -83,6 +93,16 @@
    "energy": 0.3
   },
   {
+   "full": "/assets/tape/video/draw3.mp4",
+   "disp": "/assets/tape/video/draw3.mp4",
+   "webm": "/assets/tape/video/draw3.webm",
+   "video": true,
+   "w": 720,
+   "h": 450,
+   "category": "Drawing time-lapse",
+   "energy": 0.4
+  },
+  {
    "disp": "/assets/img/ce37bc81-4534-4c39-bcf0-dac70791a37c_rw_1920.jpg",
    "full": "/assets/img/ce37bc81-4534-4c39-bcf0-dac70791a37c_rw_1920.jpg",
    "w": 1428,
@@ -107,9 +127,9 @@
    "energy": 0.3
   },
   {
-   "full": "/assets/tape/video/draw2.mp4",
-   "disp": "/assets/tape/video/draw2.mp4",
-   "webm": "/assets/tape/video/draw2.webm",
+   "full": "/assets/tape/video/draw4.mp4",
+   "disp": "/assets/tape/video/draw4.mp4",
+   "webm": "/assets/tape/video/draw4.webm",
    "video": true,
    "w": 720,
    "h": 450,
@@ -141,6 +161,16 @@
    "energy": 0.3
   },
   {
+   "full": "/assets/tape/video/draw5.mp4",
+   "disp": "/assets/tape/video/draw5.mp4",
+   "webm": "/assets/tape/video/draw5.webm",
+   "video": true,
+   "w": 720,
+   "h": 450,
+   "category": "Drawing time-lapse",
+   "energy": 0.4
+  },
+  {
    "disp": "/assets/img/pmc-treehouse-ink-1.jpg",
    "full": "/assets/img/pmc-treehouse-ink-1.jpg",
    "w": 1024,
@@ -165,9 +195,9 @@
    "energy": 0.3
   },
   {
-   "full": "/assets/tape/video/draw3.mp4",
-   "disp": "/assets/tape/video/draw3.mp4",
-   "webm": "/assets/tape/video/draw3.webm",
+   "full": "/assets/tape/video/draw6.mp4",
+   "disp": "/assets/tape/video/draw6.mp4",
+   "webm": "/assets/tape/video/draw6.webm",
    "video": true,
    "w": 720,
    "h": 450,
@@ -199,6 +229,16 @@
    "energy": 0.3
   },
   {
+   "full": "/assets/tape/video/draw7.mp4",
+   "disp": "/assets/tape/video/draw7.mp4",
+   "webm": "/assets/tape/video/draw7.webm",
+   "video": true,
+   "w": 720,
+   "h": 450,
+   "category": "Drawing time-lapse",
+   "energy": 0.4
+  },
+  {
    "disp": "/assets/img/0c36ac33-7c8b-488d-b443-1ff74fba361e.jpg",
    "full": "/assets/img/0c36ac33-7c8b-488d-b443-1ff74fba361e.jpg",
    "w": 1200,
@@ -223,9 +263,9 @@
    "energy": 0.5
   },
   {
-   "full": "/assets/tape/video/draw4.mp4",
-   "disp": "/assets/tape/video/draw4.mp4",
-   "webm": "/assets/tape/video/draw4.webm",
+   "full": "/assets/tape/video/draw8.mp4",
+   "disp": "/assets/tape/video/draw8.mp4",
+   "webm": "/assets/tape/video/draw8.webm",
    "video": true,
    "w": 720,
    "h": 450,
@@ -257,6 +297,16 @@
    "energy": 0.5
   },
   {
+   "full": "/assets/tape/video/draw9.mp4",
+   "disp": "/assets/tape/video/draw9.mp4",
+   "webm": "/assets/tape/video/draw9.webm",
+   "video": true,
+   "w": 720,
+   "h": 450,
+   "category": "Drawing time-lapse",
+   "energy": 0.4
+  },
+  {
    "disp": "/assets/img/68448e95-cc48-413a-9826-9c8acd99c0a8.jpg",
    "full": "/assets/img/68448e95-cc48-413a-9826-9c8acd99c0a8.jpg",
    "w": 1200,
@@ -281,9 +331,9 @@
    "energy": 0.5
   },
   {
-   "full": "/assets/tape/video/draw5.mp4",
-   "disp": "/assets/tape/video/draw5.mp4",
-   "webm": "/assets/tape/video/draw5.webm",
+   "full": "/assets/tape/video/draw10.mp4",
+   "disp": "/assets/tape/video/draw10.mp4",
+   "webm": "/assets/tape/video/draw10.webm",
    "video": true,
    "w": 720,
    "h": 450,
@@ -315,6 +365,16 @@
    "energy": 0.55
   },
   {
+   "full": "/assets/tape/video/draw11.mp4",
+   "disp": "/assets/tape/video/draw11.mp4",
+   "webm": "/assets/tape/video/draw11.webm",
+   "video": true,
+   "w": 720,
+   "h": 450,
+   "category": "Drawing time-lapse",
+   "energy": 0.4
+  },
+  {
    "disp": "/assets/img/495f96e0-8804-4d71-ae89-66dac023ffa2.jpg",
    "full": "/assets/img/495f96e0-8804-4d71-ae89-66dac023ffa2.jpg",
    "w": 512,
@@ -339,9 +399,9 @@
    "energy": 0.55
   },
   {
-   "full": "/assets/tape/video/draw6.mp4",
-   "disp": "/assets/tape/video/draw6.mp4",
-   "webm": "/assets/tape/video/draw6.webm",
+   "full": "/assets/tape/video/draw12.mp4",
+   "disp": "/assets/tape/video/draw12.mp4",
+   "webm": "/assets/tape/video/draw12.webm",
    "video": true,
    "w": 720,
    "h": 450,
@@ -373,6 +433,16 @@
    "energy": 0.55
   },
   {
+   "full": "/assets/tape/video/draw13.mp4",
+   "disp": "/assets/tape/video/draw13.mp4",
+   "webm": "/assets/tape/video/draw13.webm",
+   "video": true,
+   "w": 720,
+   "h": 450,
+   "category": "Drawing time-lapse",
+   "energy": 0.4
+  },
+  {
    "disp": "/assets/img/376be57b-0f19-4d40-a77a-372b8ed81a24.jpg",
    "full": "/assets/img/376be57b-0f19-4d40-a77a-372b8ed81a24.jpg",
    "w": 500,
@@ -397,9 +467,9 @@
    "energy": 0.55
   },
   {
-   "full": "/assets/tape/video/draw7.mp4",
-   "disp": "/assets/tape/video/draw7.mp4",
-   "webm": "/assets/tape/video/draw7.webm",
+   "full": "/assets/tape/video/draw14.mp4",
+   "disp": "/assets/tape/video/draw14.mp4",
+   "webm": "/assets/tape/video/draw14.webm",
    "video": true,
    "w": 720,
    "h": 450,
@@ -431,6 +501,16 @@
    "energy": 0.55
   },
   {
+   "full": "/assets/tape/video/draw15.mp4",
+   "disp": "/assets/tape/video/draw15.mp4",
+   "webm": "/assets/tape/video/draw15.webm",
+   "video": true,
+   "w": 720,
+   "h": 450,
+   "category": "Drawing time-lapse",
+   "energy": 0.4
+  },
+  {
    "disp": "/assets/img/00f56888-87aa-42a0-8304-6066cdf5282b_rw_1920.jpg",
    "full": "/assets/img/00f56888-87aa-42a0-8304-6066cdf5282b_rw_1920.jpg",
    "w": 1435,
@@ -455,9 +535,9 @@
    "energy": 0.55
   },
   {
-   "full": "/assets/tape/video/draw8.mp4",
-   "disp": "/assets/tape/video/draw8.mp4",
-   "webm": "/assets/tape/video/draw8.webm",
+   "full": "/assets/tape/video/draw16.mp4",
+   "disp": "/assets/tape/video/draw16.mp4",
+   "webm": "/assets/tape/video/draw16.webm",
    "video": true,
    "w": 720,
    "h": 450,
@@ -489,6 +569,16 @@
    "energy": 0.55
   },
   {
+   "full": "/assets/tape/video/draw17.mp4",
+   "disp": "/assets/tape/video/draw17.mp4",
+   "webm": "/assets/tape/video/draw17.webm",
+   "video": true,
+   "w": 720,
+   "h": 450,
+   "category": "Drawing time-lapse",
+   "energy": 0.4
+  },
+  {
    "disp": "/assets/img/pmc-portrait-marilyn.jpg",
    "full": "/assets/img/pmc-portrait-marilyn.jpg",
    "w": 951,
@@ -503,12 +593,21 @@
    "h": 2457,
    "category": "Swap or Burn",
    "energy": 0.6
+  },
+  {
+   "full": "/assets/tape/video/draw18.mp4",
+   "disp": "/assets/tape/video/draw18.mp4",
+   "webm": "/assets/tape/video/draw18.webm",
+   "video": true,
+   "w": 720,
+   "h": 450,
+   "category": "Drawing time-lapse",
+   "energy": 0.4
   }
  ],
  "counts": {
   "artworks": 53,
-  "clips": 8,
-  "total": 61,
-  "droppedAItreehouses": 7
+  "clips": 18,
+  "total": 71
  }
 }
