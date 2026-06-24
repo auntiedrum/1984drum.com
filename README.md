@@ -14,7 +14,6 @@ Migrated from Adobe Portfolio — fully independent of any Adobe service.
 /sketchbook
 /early-work
 /graphite-studies-2007-2016
-/swap-or-burn
 assets/img/                    all artwork + thumbnails (self-hosted, no external CDN)
 assets/css/                    fonts.css, main.css, theme.css, app.css
 assets/js/app.js               lazy-load + lightbox + mobile nav (replaces Adobe's 355 KB bundle)
