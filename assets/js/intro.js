@@ -343,9 +343,11 @@
   function tick() {
     var t = (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
     if (!lastT) lastT = t;
+    if (gridMode) { lastT = t; return; }   // grid view: pause the film render
     clock += Math.min(0.1, t - lastT); lastT = t;
     renderVisual(clock);
   }
+  var gridMode = false;
   function startVisuals() {
     if (visTimer) return;
     visTimer = setInterval(tick, 40); // survives background-tab rAF throttling
@@ -521,4 +523,110 @@
     if (lbl) lbl.textContent = on ? 'Sound on' : 'Tap for sound';
   }
   btnSound.addEventListener('click', function (e) { e.stopPropagation(); setSound(!audioOn); });
+
+  // ============================================================
+  //  MASONRY GRID  <->  MONTAGE  (toggled by the 1984drum wordmark)
+  // ============================================================
+  var titleEl = root.querySelector('.intro__title');
+  var gridEl = root.querySelector('.intro__grid');
+  var masonryEl = root.querySelector('.intro__grid-masonry');
+  var clipsToggle = root.querySelector('.intro__clips-toggle');
+  var lightboxEl = root.querySelector('.intro__lightbox');
+  var lightboxStage = root.querySelector('.intro__lightbox-stage');
+  var lightboxClose = root.querySelector('.intro__lightbox-close');
+  var showClips = false, gridBuilt = false;
+
+  function buildGrid() {
+    masonryEl.innerHTML = '';
+    var items = gallery.filter(function (g) { return showClips || !g.video; });
+    items.forEach(function (item) {
+      var cell = document.createElement('button');
+      cell.type = 'button'; cell.className = 'intro__cell';
+      var media;
+      if (item.video) {
+        media = document.createElement('video');
+        media.muted = true; media.loop = true; media.playsInline = true; media.preload = 'metadata';
+        media.setAttribute('muted', ''); media.setAttribute('playsinline', '');
+        if (item.webm) { var sw = document.createElement('source'); sw.src = item.webm; sw.type = 'video/webm'; media.appendChild(sw); }
+        var sm = document.createElement('source'); sm.src = item.disp; sm.type = 'video/mp4'; media.appendChild(sm);
+        media.addEventListener('mouseenter', function () { media.play().catch(function () {}); });
+        media.addEventListener('mouseleave', function () { try { media.pause(); } catch (e) {} });
+      } else {
+        media = document.createElement('img');
+        media.loading = 'lazy'; media.decoding = 'async'; media.src = item.disp;
+        if (item.w && item.h) { media.width = item.w; media.height = item.h; }
+      }
+      cell.appendChild(media);
+      var tag = document.createElement('span');
+      tag.className = 'intro__cell-tag';
+      tag.textContent = item.video ? 'Drawing — clip' : (item.category || '');
+      cell.appendChild(tag);
+      cell.addEventListener('click', function () { openLightbox(item); });
+      masonryEl.appendChild(cell);
+    });
+    gridBuilt = true;
+  }
+
+  function openLightbox(item) {
+    lightboxStage.innerHTML = '';
+    var el;
+    if (item.video) {
+      el = document.createElement('video');
+      el.controls = true; el.autoplay = true; el.loop = true; el.playsInline = true;
+      if (item.webm) { var sw = document.createElement('source'); sw.src = item.webm; sw.type = 'video/webm'; el.appendChild(sw); }
+      var sm = document.createElement('source'); sm.src = item.disp; sm.type = 'video/mp4'; el.appendChild(sm);
+    } else {
+      el = document.createElement('img');
+      el.src = item.full || item.disp;            // high-res, clean (no film effect)
+      el.alt = item.category || 'Artwork';
+    }
+    lightboxStage.appendChild(el);
+    root.classList.add('is-lightbox');
+    lightboxEl.setAttribute('aria-hidden', 'false');
+  }
+  function closeLightbox() {
+    root.classList.remove('is-lightbox');
+    lightboxEl.setAttribute('aria-hidden', 'true');
+    lightboxStage.innerHTML = '';
+  }
+  lightboxClose.addEventListener('click', function (e) { e.stopPropagation(); closeLightbox(); });
+  lightboxEl.addEventListener('click', function (e) { if (e.target === lightboxEl) closeLightbox(); });
+
+  clipsToggle.addEventListener('click', function (e) {
+    e.stopPropagation();
+    showClips = !showClips;
+    clipsToggle.classList.toggle('is-on', showClips);
+    clipsToggle.textContent = showClips ? 'Hide individual clips' : 'See individual clips';
+    buildGrid();
+  });
+
+  // re-shuffle the gallery (fresh montage) — keeps the deterministic look but a new order
+  function freshMontage() {
+    var r = rng((Math.floor((Date.now() % 1e9) + Math.random() * 1e9)) >>> 0);
+    for (var i = gallery.length - 1; i > 0; i--) { var j = Math.floor(r() * (i + 1)); var t = gallery[i]; gallery[i] = gallery[j]; gallery[j] = t; }
+    idx = 0; vis.cur = null; vis.next = null; spliceAt = -1;
+  }
+
+  function enterGrid() {
+    gridMode = true;
+    if (!gridBuilt) buildGrid();
+    root.classList.add('is-grid');
+    gridEl.setAttribute('aria-hidden', 'false');
+    if (audioOn) fadeAudio(0.18, 0.6);          // duck the bed while browsing the grid
+  }
+  function exitGrid() {
+    gridMode = false;
+    root.classList.remove('is-grid');
+    gridEl.setAttribute('aria-hidden', 'true');
+    closeLightbox();
+    freshMontage();                              // come back to a NEW montage
+    if (audioOn) fadeAudio(VOL, 1.2);
+  }
+  titleEl.addEventListener('click', function (e) {
+    e.stopPropagation();
+    if (root.classList.contains('is-grid')) exitGrid(); else enterGrid();
+  });
+  window.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { if (root.classList.contains('is-lightbox')) closeLightbox(); else if (gridMode) exitGrid(); }
+  });
 })();
