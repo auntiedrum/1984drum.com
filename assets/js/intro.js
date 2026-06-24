@@ -415,18 +415,15 @@
       sinceBackbone = last.backbone ? 0 : sinceBackbone + 1;
       for (var k = 0; k < pool.length; k++) {
         var c = pool[k]; if (c.id === last.id) continue;
-        // STRONG reuse penalty so the mix cycles through ALL the scraped clips for variety.
-        // Texture reuses are heavily penalised; only allow a repeat once everything's played.
-        var penalty = (used[c.id] || 0) * (c.backbone ? 140 : 320);
-        // In the EXPLORER bed the scraped IG/X clips lead — they're shorter and there are 19
-        // of them, so they get most of the airtime and all surface. Pete's long backbone
-        // tracks now appear only OCCASIONALLY (every few clips) as a grounding undercurrent.
-        var backboneBias = c.backbone ? 70 : 0;            // backbone is now DIS-preferred...
-        if (c.backbone && bbRun === 0 && sinceBackbone >= 3) backboneBias = -40;  // ...except every ~4th slot
-        if (c.backbone && last.backbone) backboneBias += 200;  // never two backbone in a row here
-        var sameTrack = 0;
-        if (c.backbone) sameTrack += (trackUsed[trackOf(c.id)] || 0) * 30;
-        var sc = cost(last, c) * 0.4 + Math.abs(c.e - arc(pos)) * 80 + penalty + backboneBias + sameTrack + mixRand() * 16;
+        // Strong reuse penalty so the mix cycles through ALL clips for variety (everything's
+        // short now, ≤30s, so we can balance Pete's tracks and the IG/X clips EVENLY).
+        var penalty = (used[c.id] || 0) * 240;
+        // gently alternate texture <-> backbone so neither clusters (even blend throughout)
+        var typeBias = (last && c.backbone === last.backbone) ? 28 : 0;
+        // don't play two sections of the SAME Pete track close together
+        var sameTrack = c.backbone ? (trackUsed[trackOf(c.id)] || 0) * 24 : 0;
+        if (c.backbone && last.backbone && trackOf(c.id) === trackOf(last.id)) sameTrack += 200;
+        var sc = cost(last, c) * 0.45 + Math.abs(c.e - arc(pos)) * 85 + penalty + typeBias + sameTrack + mixRand() * 16;
         if (sc < bestC) { bestC = sc; best = c; }
       }
       if (!best) break;
