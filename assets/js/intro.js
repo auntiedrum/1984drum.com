@@ -668,6 +668,12 @@
     e.stopPropagation();
     if (root.classList.contains('is-grid')) exitGrid(); else enterGrid();
   });
+  // top-right X — closes the montage to the grid (same as the wordmark toggle)
+  var closeEl = root.querySelector('.intro__close');
+  if (closeEl) closeEl.addEventListener('click', function (e) {
+    e.stopPropagation();
+    if (!root.classList.contains('is-grid')) enterGrid();
+  });
   window.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') { if (root.classList.contains('is-lightbox')) closeLightbox(); else if (gridMode) exitGrid(); }
   });
