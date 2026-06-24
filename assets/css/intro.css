@@ -177,6 +177,10 @@ body.has-intro .site-container { display: none; }
   transition: filter .25s ease;
 }
 .intro__cell:hover img, .intro__cell:hover video { filter: none; }
+/* progressively pixelated repeats on infinite scroll — stretch the blocky thumb, no smoothing */
+.intro__cell img.is-pixelated, .intro__cell video.is-pixelated {
+  image-rendering: pixelated; image-rendering: -moz-crisp-edges; image-rendering: crisp-edges;
+}
 /* a soft grain veil over each thumb, removed on hover */
 .intro__cell::after {
   content: ''; position: absolute; inset: 0; pointer-events: none;
@@ -211,6 +215,11 @@ body.has-intro .site-container { display: none; }
 .intro__lightbox-stage img, .intro__lightbox-stage video {
   max-width: 94vw; max-height: 90vh; width: auto; height: auto;
   box-shadow: 0 20px 80px rgba(0,0,0,.6); border-radius: 2px;
+}
+/* YouTube embed of the full drawing time-lapse */
+.intro__lightbox-stage .intro__yt {
+  width: min(90vw, 1280px); height: min(50.6vw, 720px); max-height: 86vh;
+  border: 0; box-shadow: 0 20px 80px rgba(0,0,0,.6); border-radius: 2px;
 }
 .intro__lightbox-close {
   position: absolute; top: 18px; right: 22px; z-index: 2;

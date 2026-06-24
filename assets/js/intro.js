@@ -619,36 +619,73 @@
   var lightboxClose = root.querySelector('.intro__lightbox-close');
   var gridBuilt = false;
 
+  var loopLevel = 0;          // how many times the grid has repeated (drives pixelation)
+  function makeCell(item, level) {
+    var cell = document.createElement('div');
+    cell.className = 'intro__cell' + (item.video ? ' is-video' : '');
+    var media;
+    if (item.video) {
+      media = document.createElement('video');
+      media.muted = true; media.loop = true; media.playsInline = true; media.preload = 'metadata';
+      media.setAttribute('muted', ''); media.setAttribute('playsinline', '');
+      if (item.webm) { var sw = document.createElement('source'); sw.src = item.webm; sw.type = 'video/webm'; media.appendChild(sw); }
+      var sm = document.createElement('source'); sm.src = item.disp; sm.type = 'video/mp4'; media.appendChild(sm);
+      cell.appendChild(media);
+      var bar = document.createElement('div'); bar.className = 'intro__cell-bar';
+      var fill = document.createElement('div'); fill.className = 'intro__cell-bar-fill';
+      bar.appendChild(fill); cell.appendChild(bar);
+      wireClipCell(cell, media, bar, fill);
+      cell.addEventListener('click', function (e) {
+        if (e.target.closest('.intro__cell-bar')) return;
+        openLightbox(item);
+      });
+      // pixelate repeated video thumbs too (CSS pixelated rendering on the <video>)
+      if (level > 0) pixelateMedia(media, level);
+    } else {
+      media = document.createElement('img');
+      media.loading = 'lazy'; media.decoding = 'async';
+      if (item.w && item.h) { media.width = item.w; media.height = item.h; }
+      cell.appendChild(media);
+      cell.addEventListener('click', function () { openLightbox(item); });
+      if (level > 0) {
+        // progressive pixelation: quarter the dimensions per loop (nearest-neighbour),
+        // then let CSS stretch it back to size.
+        pixelateImage(item.disp, media, level, item.w || 600, item.h || 600);
+      } else {
+        media.src = item.disp;
+      }
+    }
+    return cell;
+  }
+  // each repeat appends the whole gallery again, pixelated by its loop level
+  function appendGallerySet(level) {
+    gallery.forEach(function (item) { masonryEl.appendChild(makeCell(item, level)); });
+  }
   function buildGrid() {
     masonryEl.innerHTML = '';
-    // show EVERYTHING — artworks AND clips — by default. No category text anywhere.
-    gallery.forEach(function (item) {
-      var cell = document.createElement('div');
-      cell.className = 'intro__cell' + (item.video ? ' is-video' : '');
-      var media;
-      if (item.video) {
-        media = document.createElement('video');
-        media.muted = true; media.loop = true; media.playsInline = true; media.preload = 'metadata';
-        media.setAttribute('muted', ''); media.setAttribute('playsinline', '');
-        if (item.webm) { var sw = document.createElement('source'); sw.src = item.webm; sw.type = 'video/webm'; media.appendChild(sw); }
-        var sm = document.createElement('source'); sm.src = item.disp; sm.type = 'video/mp4'; media.appendChild(sm);
-        cell.appendChild(media);
-        // draggable progress bar for the clip (shown on hover via CSS)
-        var bar = document.createElement('div'); bar.className = 'intro__cell-bar';
-        var fill = document.createElement('div'); fill.className = 'intro__cell-bar-fill';
-        bar.appendChild(fill); cell.appendChild(bar);
-        wireClipCell(cell, media, bar, fill);
-      } else {
-        media = document.createElement('img');
-        media.loading = 'lazy'; media.decoding = 'async'; media.src = item.disp;
-        if (item.w && item.h) { media.width = item.w; media.height = item.h; }
-        cell.appendChild(media);
-        cell.addEventListener('click', function () { openLightbox(item); });
-      }
-      masonryEl.appendChild(cell);
-    });
+    loopLevel = 0;
+    appendGallerySet(0);     // first, clean pass
     gridBuilt = true;
   }
+
+  // downscale by 1/4^level with smoothing OFF, then point the <img> at the blocky result;
+  // CSS (image-rendering: pixelated) stretches it back to full size.
+  function pixelateImage(src, imgEl, level, w, h) {
+    var probe = new Image();
+    probe.onload = function () {
+      var factor = Math.pow(4, level);
+      var sw = Math.max(1, Math.round(probe.naturalWidth / factor));
+      var sh = Math.max(1, Math.round(probe.naturalHeight / factor));
+      var c = document.createElement('canvas'); c.width = sw; c.height = sh;
+      var g = c.getContext('2d'); g.imageSmoothingEnabled = false;
+      g.drawImage(probe, 0, 0, sw, sh);
+      imgEl.classList.add('is-pixelated');
+      try { imgEl.src = c.toDataURL('image/png'); } catch (e) { imgEl.src = src; }
+    };
+    probe.onerror = function () { imgEl.src = src; };
+    probe.src = src;
+  }
+  function pixelateMedia(el, level) { el.classList.add('is-pixelated'); el.style.imageRendering = 'pixelated'; }
 
   // hover plays the clip; the bar reflects/seeks progress; a click that isn't a drag opens it.
   function wireClipCell(cell, media, bar, fill) {
@@ -674,7 +711,15 @@
   function openLightbox(item) {
     lightboxStage.innerHTML = '';
     var el;
-    if (item.video) {
+    if (item.video && item.yt) {
+      // the full drawing time-lapse, embedded & playing from YouTube
+      el = document.createElement('iframe');
+      el.className = 'intro__yt';
+      el.src = 'https://www.youtube-nocookie.com/embed/' + item.yt + '?autoplay=1&rel=0&modestbranding=1';
+      el.allow = 'autoplay; encrypted-media; picture-in-picture';
+      el.setAttribute('allowfullscreen', '');
+      el.setAttribute('frameborder', '0');
+    } else if (item.video) {
       el = document.createElement('video');
       el.controls = true; el.autoplay = true; el.loop = true; el.playsInline = true;
       if (item.webm) { var sw = document.createElement('source'); sw.src = item.webm; sw.type = 'video/webm'; el.appendChild(sw); }
@@ -691,10 +736,23 @@
   function closeLightbox() {
     root.classList.remove('is-lightbox');
     lightboxEl.setAttribute('aria-hidden', 'true');
-    lightboxStage.innerHTML = '';
+    lightboxStage.innerHTML = '';   // also stops the YouTube iframe
   }
   lightboxClose.addEventListener('click', function (e) { e.stopPropagation(); closeLightbox(); });
   lightboxEl.addEventListener('click', function (e) { if (e.target === lightboxEl) closeLightbox(); });
+
+  // INFINITE SCROLL: near the bottom, append the whole gallery again — each repeat more
+  // pixelated than the last (quartered nearest-neighbour, then stretched back).
+  var appending = false;
+  gridEl.addEventListener('scroll', function () {
+    if (appending) return;
+    if (gridEl.scrollTop + gridEl.clientHeight >= gridEl.scrollHeight - 500) {
+      appending = true;
+      loopLevel++;
+      appendGallerySet(loopLevel);
+      setTimeout(function () { appending = false; }, 300);
+    }
+  });
 
   // ---- 4 pre-made montages, rotated per visit ----
   // Four FIXED seeds -> four distinct, deterministic gallery orders. Each visit plays the
