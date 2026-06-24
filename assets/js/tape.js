@@ -157,11 +157,23 @@
   }
   var analyser = null, vuData = null, comp = null;
 
+  var FADE_IN = 6; // seconds — every mix eases up from silence
   // schedule the whole sequence from a given elapsed `offset` (seconds)
   function schedule(fromOffset) {
     stopSources();
     var now = ctx.currentTime + 0.06;
     t0 = now - fromOffset / speed;
+    // gentle master fade-in when a mix starts from the very beginning (not on
+    // pause/resume or seek, which schedule from a non-zero offset).
+    if (masterGain) {
+      masterGain.gain.cancelScheduledValues(now);
+      if (fromOffset <= 0.05) {
+        masterGain.gain.setValueAtTime(0.0001, now);
+        masterGain.gain.linearRampToValueAtTime(volume, now + FADE_IN);
+      } else {
+        masterGain.gain.setValueAtTime(volume, now);
+      }
+    }
     sequence.forEach(function (seg) {
       var segStart = seg.startAt, segEnd = seg.startAt + seg.dur;
       if (segEnd <= fromOffset) return;            // already past
@@ -199,7 +211,10 @@
     var SR = 44100, CH = 2;
     var total = MIX_SECONDS;
     var oac = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(CH, Math.ceil(total * SR), SR);
-    var master = oac.createGain(); master.gain.value = volume;
+    var master = oac.createGain();
+    // same gentle fade-in as live playback, baked into the file
+    master.gain.setValueAtTime(0.0001, 0);
+    master.gain.linearRampToValueAtTime(volume, FADE_IN);
     var c = oac.createDynamicsCompressor();
     c.threshold.value = -12; c.knee.value = 24; c.ratio.value = 3; c.attack.value = 0.012; c.release.value = 0.30;
     master.connect(c); c.connect(oac.destination);
