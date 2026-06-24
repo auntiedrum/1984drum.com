@@ -665,7 +665,7 @@
       // the full drawing time-lapse, embedded & playing from YouTube
       el = document.createElement('iframe');
       el.className = 'intro__yt';
-      el.src = 'https://www.youtube-nocookie.com/embed/' + item.yt + '?autoplay=1&rel=0&modestbranding=1';
+      el.src = 'https://www.youtube-nocookie.com/embed/' + item.yt + '?autoplay=1&mute=1&rel=0&modestbranding=1';
       el.allow = 'autoplay; encrypted-media; picture-in-picture';
       el.setAttribute('allowfullscreen', '');
       el.setAttribute('frameborder', '0');
