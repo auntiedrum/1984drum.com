@@ -125,16 +125,27 @@
     // frame is full — no letterbox). The 16mm film look (grade + grain overlay) is kept.
     var ir = mW(m) / mH(m), br = W / H, bw, bh;
     if (ir > br) { bh = H; bw = H * ir; } else { bw = W; bh = W / ir; }
-    // gentle slow Ken-Burns while held: a small zoom-in + slow drift, filling the frame
-    var z = 1.06 + 0.06 * (t * t * (3 - 2 * t));
+    // Ken-Burns while held: extra zoom headroom so the handheld sway + rotation always have
+    // room and never expose the dark frame edges.
+    var z = 1.14 + 0.08 * (t * t * (3 - 2 * t));
     var dw = bw * z, dh = bh * z;
     var maxY = (dh - H) / 2, maxX = (dw - W) / 2;
-    // slow drift in the piece's seeded direction (calm, never racing)
+    // faster directional drift across the dwell (was 0.55 of the slack, now ~0.9)
     var phase = (t - 0.5);
-    var panX = Math.cos(k.dir) * maxX * 0.55 * phase;
-    var panY = Math.sin(k.dir) * maxY * 0.55 * phase;
-    // bias the drift downward a touch for the reading direction, but keep it gentle
-    if (readsDown) panY = (0.20 - phase * 0.45) * maxY;
+    var panX = Math.cos(k.dir) * maxX * 0.9 * phase;
+    var panY = Math.sin(k.dir) * maxY * 0.9 * phase;
+    if (readsDown) panY = (0.28 - phase * 0.7) * maxY;   // livelier downward read
+
+    // HANDHELD SWAY: a continuous, time-based bob — a couple of summed sines on each axis
+    // (sideways stronger than vertical) so it feels like a person holding the camera. Uses
+    // the absolute clock so it's smooth regardless of the dwell, scaled to the frame.
+    var hc = clock * (0.9 + k.jitter * 0.5);             // per-piece sway tempo
+    var swayX = (Math.sin(hc * 1.7 + k.dir) * 0.6 + Math.sin(hc * 0.9 + 1.3) * 0.4) * W * 0.018;
+    var swayY = (Math.sin(hc * 1.3 + 2.1) * 0.6 + Math.sin(hc * 2.3) * 0.4) * H * 0.011;
+    panX += swayX; panY += swayY;
+    // tiny rotation wobble for the handheld feel
+    var rot = (Math.sin(hc * 0.8 + k.dir) * 0.5 + Math.sin(hc * 1.9) * 0.5) * 0.006;
+
     panX = Math.max(-maxX, Math.min(maxX, panX));
     panY = Math.max(-maxY, Math.min(maxY, panY));
 
@@ -142,6 +153,8 @@
     cctx.save();
     cctx.globalAlpha = alpha;
     if (cctx.filter !== undefined) cctx.filter = GRADE;
+    // apply the tiny handheld rotation about the frame centre
+    cctx.translate(W / 2, H / 2); cctx.rotate(rot); cctx.translate(-W / 2, -H / 2);
     try { cctx.drawImage(m, bx, by, dw, dh); } catch (e) {}
     cctx.restore();
   }
