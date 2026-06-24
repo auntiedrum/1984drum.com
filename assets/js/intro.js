@@ -121,59 +121,59 @@
     // (~0.8–1.05) get a calm smooth downward drift.
     var strongRoll = imgAR < 0.8;
 
+    // FIT MODE: video clips are cut to 16:10 and fill the frame (cover). STILL artworks are
+    // CONTAIN-fitted — the WHOLE piece is shown, letterboxed against the dark film background,
+    // so nothing is ever cropped or "gone too big". Only a barely-perceptible slow zoom.
     var ir = mW(m) / mH(m), br = W / H, bw, bh;
-    if (ir > br) { bh = H; bw = H * ir; } else { bw = W; bh = W / ir; }
-    var z = k.z0 + (k.z1 - k.z0) * t;
-    var dw = bw * z, dh = bh * z;
-    var maxY = (dh - H) / 2, maxX = (dw - W) / 2;
-    var panX, panY;
-
-    // Downward-reading pieces advance in DELIBERATE STUTTER STEPS — a few big holds, each
-    // resolving sharp, with a vertical motion-blur smear during the jump between holds
-    // (like a film frame being pulled down through the gate). `smear` carries the per-step
-    // blur amount + direction out to the draw block below.
-    var smear = 0;
-    if (readsDown && maxY > 2) {
-      var startFrac = 0.42, travelFrac = strongRoll ? 0.66 : 0.46;
-      var span = maxY * travelFrac;                    // total downward travel this dwell
-      var topY = maxY * startFrac;
-      var STEPS = 5;                                   // ~5–6 deliberate steps
-      var HOLD = 0.62;                                 // fraction of each step spent holding (sharp)
-      var sf = Math.min(0.999, t) * STEPS;             // 0..STEPS
-      var stepIdx = Math.floor(sf);                    // which step we're in
-      var within = sf - stepIdx;                       // 0..1 through this step
-      // hold sharp, then jump: position eases from this step to the next during the jump phase
-      var fromY = topY - (stepIdx / STEPS) * span;
-      var toY = topY - (Math.min(STEPS, stepIdx + 1) / STEPS) * span;
-      var jp;                                          // 0 while holding, 0..1 during the jump
-      if (within < HOLD) { jp = 0; }
-      else { var u = (within - HOLD) / (1 - HOLD); jp = u * u * (3 - 2 * u); }
-      panY = fromY + (toY - fromY) * jp;
-      // motion blur scales with how fast we're moving this frame (only during the jump)
-      var jumpDist = Math.abs(toY - fromY);
-      // bell-shaped: peaks mid-jump, zero on the holds → sharp holds, smeared jumps
-      var blurEnv = jp > 0 && jp < 1 ? Math.sin(jp * Math.PI) : 0;
-      smear = (toY - fromY) * blurEnv * 0.9;           // signed vertical smear, px
-      panY = Math.max(-maxY, Math.min(maxY, panY));
-      panX = Math.sin(t * 1.1) * (maxX * 0.05);
-      panX = Math.max(-maxX, Math.min(maxX, panX));
+    if (m._isVideo) {
+      // cover (clips already match 16:10)
+      if (ir > br) { bh = H; bw = H * ir; } else { bw = W; bh = W / ir; }
     } else {
-      // wide / fitting pieces: very gentle floaty drift (unchanged)
-      var overX = Math.max(0, dw - W), overY = Math.max(0, dh - H);
-      var travelX = (Math.min(overX, W * 0.4) * 0.35 + W * 0.015) * k.jitter;
-      var travelY = (Math.min(overY, H * 0.4) * 0.35 + H * 0.015) * k.jitter;
-      var phase = (t - 0.5) * 0.7;
-      panX = Math.cos(k.dir) * travelX * phase;
-      panY = Math.sin(k.dir) * travelY * phase;
-      panX = Math.max(-maxX, Math.min(maxX, panX));
-      panY = Math.max(-maxY, Math.min(maxY, panY));
+      // contain: fit the whole image inside the frame
+      if (ir > br) { bw = W; bh = W / ir; } else { bh = H; bw = H * ir; }
     }
+    // almost no zoom: open at full-fit (1.0) and grow only a hair over the dwell
+    var z = 1.0 + 0.03 * (t * t * (3 - 2 * t));
+    var dw = bw * z, dh = bh * z;
+    // available slack to move within the frame (contain pieces start at 0 slack, the tiny
+    // zoom gives a little). Never pan beyond what keeps the piece sensibly in view.
+    var maxY = Math.abs(dh - H) / 2, maxX = Math.abs(dw - W) / 2;
+    var panX = 0, panY = 0, smear = 0;
+
+    // Keep the analogue stutter FEEL as a small, in-view drift (not a reveal sweep). For
+    // contain pieces there's little slack, so the motion is a gentle stepped breathing.
+    if (readsDown) {
+      var travel = Math.min(maxY, H * 0.05) + H * 0.012;   // tiny downward travel, capped
+      var STEPS = 5, HOLD = 0.62;
+      var sf = Math.min(0.999, t) * STEPS;
+      var stepIdx = Math.floor(sf), within = sf - stepIdx;
+      var fromY = (0.5 - stepIdx / STEPS) * travel;
+      var toY = (0.5 - Math.min(STEPS, stepIdx + 1) / STEPS) * travel;
+      var jp; if (within < HOLD) jp = 0; else { var u = (within - HOLD) / (1 - HOLD); jp = u * u * (3 - 2 * u); }
+      panY = fromY + (toY - fromY) * jp;
+      var blurEnv = jp > 0 && jp < 1 ? Math.sin(jp * Math.PI) : 0;
+      smear = (toY - fromY) * blurEnv * 0.9;
+      panX = Math.sin(t * 1.1) * (maxX * 0.05);
+    } else {
+      // wide pieces: very gentle floaty drift within whatever slack the zoom gives
+      var phase = (t - 0.5) * 0.6;
+      panX = Math.cos(k.dir) * (maxX * 0.5 + W * 0.01) * phase;
+      panY = Math.sin(k.dir) * (maxY * 0.5 + H * 0.01) * phase;
+    }
+    panX = Math.max(-maxX - 1, Math.min(maxX + 1, panX));
+    panY = Math.max(-maxY - 1, Math.min(maxY + 1, panY));
+
     var bx = (W - dw) / 2 + panX, by = (H - dh) / 2 + panY;
     cctx.save();
+    // fill the letterbox margins behind contain-fitted stills so nothing shows through
+    if (!m._isVideo) {
+      cctx.globalAlpha = alpha;
+      cctx.fillStyle = '#06100c';
+      cctx.fillRect(0, 0, W, H);
+    }
     if (cctx.filter !== undefined) cctx.filter = GRADE;
     if (Math.abs(smear) > 1.2) {
-      // VERTICAL MOTION BLUR: draw several offset copies along the jump vector at low alpha,
-      // so the moving image smears in the direction of travel, then resolves sharp on the hold.
+      // vertical motion-blur smear during the stutter jump, sharp on the hold
       var N = 6;
       cctx.globalAlpha = alpha / N;
       for (var s = 0; s < N; s++) {
