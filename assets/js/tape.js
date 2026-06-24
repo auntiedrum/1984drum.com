@@ -19,14 +19,8 @@
   var root = document.getElementById('tape-deck');
   if (!root) return;
 
-  var MIX_SECONDS = 19 * 60;        // target tape length
+  var MIX_SECONDS = 19 * 60;        // target tape length (always the full 19 min)
   var SAVE_WINDOW = 30;             // seconds to save before it explodes
-  // debug hook: ?mix=SECONDS&save=SECONDS to test the full finish/save flow quickly
-  try {
-    var _q = new URLSearchParams(location.search);
-    if (_q.get('mix')) MIX_SECONDS = parseInt(_q.get('mix'), 10) || MIX_SECONDS;
-    if (_q.get('save')) SAVE_WINDOW = parseInt(_q.get('save'), 10) || SAVE_WINDOW;
-  } catch (e) {}
   var BASE = root.getAttribute('data-base') || '/assets/tape/';
 
   // ---------- tiny seeded RNG (mulberry32) so a mix is reproducible from a seed ----------
