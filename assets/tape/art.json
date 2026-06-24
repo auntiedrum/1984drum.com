@@ -935,6 +935,86 @@
    "h": 660,
    "category": "Island series",
    "energy": 0.4
+  },
+  {
+   "full": "/assets/tape/video/draw1.mp4",
+   "disp": "/assets/tape/video/draw1.mp4",
+   "webm": "/assets/tape/video/draw1.webm",
+   "video": true,
+   "w": 720,
+   "h": 450,
+   "category": "Drawing time-lapse",
+   "energy": 0.4
+  },
+  {
+   "full": "/assets/tape/video/draw2.mp4",
+   "disp": "/assets/tape/video/draw2.mp4",
+   "webm": "/assets/tape/video/draw2.webm",
+   "video": true,
+   "w": 720,
+   "h": 450,
+   "category": "Drawing time-lapse",
+   "energy": 0.4
+  },
+  {
+   "full": "/assets/tape/video/draw3.mp4",
+   "disp": "/assets/tape/video/draw3.mp4",
+   "webm": "/assets/tape/video/draw3.webm",
+   "video": true,
+   "w": 720,
+   "h": 450,
+   "category": "Drawing time-lapse",
+   "energy": 0.4
+  },
+  {
+   "full": "/assets/tape/video/draw4.mp4",
+   "disp": "/assets/tape/video/draw4.mp4",
+   "webm": "/assets/tape/video/draw4.webm",
+   "video": true,
+   "w": 720,
+   "h": 450,
+   "category": "Drawing time-lapse",
+   "energy": 0.4
+  },
+  {
+   "full": "/assets/tape/video/draw5.mp4",
+   "disp": "/assets/tape/video/draw5.mp4",
+   "webm": "/assets/tape/video/draw5.webm",
+   "video": true,
+   "w": 720,
+   "h": 450,
+   "category": "Drawing time-lapse",
+   "energy": 0.4
+  },
+  {
+   "full": "/assets/tape/video/draw6.mp4",
+   "disp": "/assets/tape/video/draw6.mp4",
+   "webm": "/assets/tape/video/draw6.webm",
+   "video": true,
+   "w": 720,
+   "h": 450,
+   "category": "Drawing time-lapse",
+   "energy": 0.4
+  },
+  {
+   "full": "/assets/tape/video/draw7.mp4",
+   "disp": "/assets/tape/video/draw7.mp4",
+   "webm": "/assets/tape/video/draw7.webm",
+   "video": true,
+   "w": 720,
+   "h": 450,
+   "category": "Drawing time-lapse",
+   "energy": 0.4
+  },
+  {
+   "full": "/assets/tape/video/draw8.mp4",
+   "disp": "/assets/tape/video/draw8.mp4",
+   "webm": "/assets/tape/video/draw8.webm",
+   "video": true,
+   "w": 720,
+   "h": 450,
+   "category": "Drawing time-lapse",
+   "energy": 0.4
   }
  ]
 }

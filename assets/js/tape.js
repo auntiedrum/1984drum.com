@@ -67,6 +67,7 @@
   ]).then(function (res) {
     clips = res[0].clips || [];
     art = res[1].art || [];
+    indexArt();
     fitCanvas();
     drawIdle();
   }).catch(function () { setStatus('LOAD ERROR'); });
@@ -313,33 +314,63 @@
     cctx.fillStyle = '#0c1a14'; cctx.fillRect(0, 0, W, H);
   }
 
-  // pick the artwork best matching a target energy (mood-match), seeded
+  // pick a visual matching a target energy (mood-match), seeded. Most picks are
+  // still artworks; roughly 1 in 5 is a drawing time-lapse clip (woven in for the
+  // in-process texture). Returns the full art object.
   var visRand = Math.random;
+  var stills = [], videos = [];
+  function indexArt() {
+    stills = art.filter(function (a) { return !a.video; });
+    videos = art.filter(function (a) { return a.video; });
+  }
   function pickArt(targetE) {
-    // candidates sorted by closeness to targetE, take a random one of the closest few
-    var scored = art.map(function (a) { return { a: a, d: Math.abs(a.energy - targetE) + visRand() * 0.12 }; });
+    var wantVideo = videos.length && visRand() < 0.2;
+    var pool = wantVideo ? videos : (stills.length ? stills : art);
+    var scored = pool.map(function (a) { return { a: a, d: Math.abs(a.energy - targetE) + visRand() * 0.18 }; });
     scored.sort(function (x, y) { return x.d - y.d; });
-    return scored[Math.floor(visRand() * Math.min(6, scored.length))].a;
+    return scored[Math.floor(visRand() * Math.min(wantVideo ? videos.length : 6, scored.length))].a;
   }
 
-  // visual state: current + incoming image with Ken-Burns + dissolve
-  var imgCache = {};
-  function getImg(src) {
-    if (imgCache[src]) return imgCache[src];
-    var im = new Image(); im.src = src; imgCache[src] = im; return im;
+  // media cache: still -> <img>, video -> looping muted <video> (decoded on canvas)
+  var mediaCache = {};
+  function getMedia(artObj) {
+    var key = artObj.disp;
+    if (mediaCache[key]) return mediaCache[key];
+    var el;
+    if (artObj.video) {
+      el = document.createElement('video');
+      el.muted = true; el.loop = true; el.playsInline = true; el.preload = 'auto';
+      el.setAttribute('muted', ''); el.setAttribute('playsinline', '');
+      if (artObj.webm) { var sw = document.createElement('source'); sw.src = artObj.webm; sw.type = 'video/webm'; el.appendChild(sw); }
+      var sm = document.createElement('source'); sm.src = artObj.disp; sm.type = 'video/mp4'; el.appendChild(sm);
+      el._isVideo = true;
+      el.play().catch(function () {});
+    } else {
+      el = new Image(); el.src = artObj.disp;
+    }
+    mediaCache[key] = el; return el;
   }
+  function mediaReady(m) {
+    if (!m) return false;
+    if (m._isVideo) return m.readyState >= 2 && m.videoWidth > 0;
+    return m.complete && m.naturalWidth > 0;
+  }
+  function mediaW(m) { return m._isVideo ? m.videoWidth : m.naturalWidth; }
+  function mediaH(m) { return m._isVideo ? m.videoHeight : m.naturalHeight; }
+
   var vis = { cur: null, curKB: null, curBorn: 0, next: null, nextKB: null, nextStart: 0, lastSwap: 0 };
   // slow, floaty Ken-Burns: very gentle zoom + slow pan in a random direction
   function kb() { var a = visRand(); return { z0: 1.04 + visRand() * 0.03, z1: 1.12 + visRand() * 0.05, px: Math.cos(a * 6.28) * 0.04, py: Math.sin(a * 6.28) * 0.035 }; }
-  function drawCover(im, k, t, alpha) {
-    if (!im || !im.complete || !im.naturalWidth) return;
+  function drawCover(m, k, t, alpha) {
+    if (!mediaReady(m)) return;
+    if (m._isVideo && m.paused) m.play().catch(function () {});
     var z = k.z0 + (k.z1 - k.z0) * t;
-    var ir = im.naturalWidth / im.naturalHeight, br = W / H, bw, bh;
+    var ir = mediaW(m) / mediaH(m), br = W / H, bw, bh;
     if (ir > br) { bh = H; bw = H * ir; } else { bw = W; bh = W / ir; }
     var dw = bw * z, dh = bh * z;
     var panX = (k.px * t - k.px * 0.5) * W, panY = (k.py * t - k.py * 0.5) * H;
     cctx.save(); cctx.globalAlpha = alpha;
-    cctx.drawImage(im, (W - dw) / 2 + panX, (H - dh) / 2 + panY, dw, dh);
+    try { cctx.drawImage(m, (W - dw) / 2 + panX, (H - dh) / 2 + panY, dw, dh); } catch (e) {}
     cctx.restore();
   }
 
@@ -358,13 +389,22 @@
   var SWAP_EVERY = 14;   // seconds an image holds before the next begins
   var DISSOLVE = 1.5;    // soft cross-dissolve (2x faster)
   var KB_SPAN = SWAP_EVERY + DISSOLVE + 2;
+  // never show the same kind of clip twice running into a wall: just track the last
+  // picked id so a video doesn't immediately follow itself.
+  var lastPickedKey = null;
+  function pickMedia(targetE) {
+    var a = pickArt(targetE);
+    if (a.disp === lastPickedKey) a = pickArt(targetE); // one re-roll to avoid repeats
+    lastPickedKey = a.disp;
+    return getMedia(a);
+  }
   function renderVisual(elapsed) {
     cctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     cctx.clearRect(0, 0, W, H);
     var now = elapsed;
-    if (!vis.cur) { vis.cur = getImg(pickArt(currentEnergy(now)).disp); vis.curKB = kb(); vis.curBorn = now; vis.lastSwap = now; }
+    if (!vis.cur) { vis.cur = pickMedia(currentEnergy(now)); vis.curKB = kb(); vis.curBorn = now; vis.lastSwap = now; }
     if (now - vis.lastSwap > SWAP_EVERY && !vis.next) {
-      vis.next = getImg(pickArt(currentEnergy(now)).disp); vis.nextKB = kb(); vis.nextStart = now;
+      vis.next = pickMedia(currentEnergy(now)); vis.nextKB = kb(); vis.nextStart = now;
     }
     drawCover(vis.cur, vis.curKB, Math.min(1, (now - vis.curBorn) / KB_SPAN), 1);
     if (vis.next) {
