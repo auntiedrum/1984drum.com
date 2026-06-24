@@ -132,7 +132,7 @@
       var xf = 0;
       if (s > 0) {
         var db = Math.abs(eff(seq[s - 1].bpm) - eff(c.bpm));
-        xf = db < 6 ? 3 : db < 14 ? 2 : db < 28 ? 1.2 : 0.6;
+        xf = db < 6 ? 1.5 : db < 14 ? 1 : db < 28 ? 0.6 : 0.3;
       }
       at -= xf; // overlap by the crossfade
       out.push({ clip: c, startAt: Math.max(0, at), dur: c.dur, xfade: xf });
@@ -356,7 +356,7 @@
   // dissolve to the next. The Ken-Burns `t` runs across the whole dwell+dissolve
   // so motion is continuous and never resets.
   var SWAP_EVERY = 14;   // seconds an image holds before the next begins
-  var DISSOLVE = 3.0;    // long, soft cross-dissolve
+  var DISSOLVE = 1.5;    // soft cross-dissolve (2x faster)
   var KB_SPAN = SWAP_EVERY + DISSOLVE + 2;
   function renderVisual(elapsed) {
     cctx.setTransform(dpr, 0, 0, dpr, 0, 0);
