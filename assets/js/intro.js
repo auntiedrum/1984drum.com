@@ -110,11 +110,12 @@
   function drawCover(m, k, t, alpha) {
     if (!ready(m)) return;
     if (m._isVideo && m.paused) m.play().catch(function () {});
-    // CROP-AWARE PAN SPEED: how far the piece overflows the 16:10 frame. Pieces that
-    // are badly cropped (tall portraits, wide panoramas) get a faster pan so viewers
-    // see the off-screen parts within the brisk dwell; pieces that fit stay slow/floaty.
     var ir0 = mW(m) / mH(m), br0 = W / H;
     var overflowRatio = ir0 > br0 ? (ir0 / br0) : (br0 / ir0);   // 1 = fits, >1 = cropped
+    // TALL pieces (image clearly narrower than the 16:10 frame) get a dedicated top->bottom
+    // film-roll instead of the floaty pan, so the whole vertical piece is revealed.
+    var isTall = (br0 / ir0) > 1.25;
+
     var speed = 1 + Math.min(1.6, (overflowRatio - 1) * 2.2);    // up to ~2.6x faster
     var tt = Math.min(1, t * speed);
 
@@ -122,17 +123,40 @@
     var ir = mW(m) / mH(m), br = W / H, bw, bh;
     if (ir > br) { bh = H; bw = H * ir; } else { bw = W; bh = W / ir; }
     var dw = bw * z, dh = bh * z;
-    // travel distance also scales with how far the scaled image overflows the frame.
-    var overX = Math.max(0, dw - W), overY = Math.max(0, dh - H);
-    // base floaty travel, plus extra proportional to the overflow (capped so it stays gentle)
-    var travelX = (Math.min(overX, W * 0.6) * 0.85 + W * 0.03) * k.jitter;
-    var travelY = (Math.min(overY, H * 0.6) * 0.85 + H * 0.03) * k.jitter;
-    var phase = tt - 0.5;
-    var panX = Math.cos(k.dir) * travelX * phase;
-    var panY = Math.sin(k.dir) * travelY * phase;
-    // clamp so we never pan past the image edge (no empty gaps)
-    panX = Math.max(-(dw - W) / 2, Math.min((dw - W) / 2, panX));
-    panY = Math.max(-(dh - H) / 2, Math.min((dh - H) / 2, panY));
+    var maxY = (dh - H) / 2, maxX = (dw - W) / 2;
+    var panX, panY;
+
+    if (isTall && maxY > 2) {
+      // --- TOP -> BOTTOM ANALOGUE FILM ROLL ---
+      // start at the very top edge, glide down through most of the image (eased), so
+      // viewers see all of a tall piece. Motion is STEPPED + jittered like a film frame
+      // slipping in the gate / a TV vertical-hold roll — matches the grain & flicker.
+      var prog = t;                                   // 0..1 across the dwell (un-accelerated)
+      var eased = prog < 0.85 ? (prog / 0.85) : 1;    // ease/settle in the last 15%
+      eased = eased * eased * (3 - 2 * eased);         // smoothstep base
+      // quantise into ~14 stepped "frames" so the descent judders instead of gliding
+      var STEPS = 14;
+      var stepped = Math.round(eased * STEPS) / STEPS;
+      // analogue jitter: a few summed sines + a per-step vertical kick, all tiny
+      var jit = (Math.sin(t * 47.0 + k.dir) * 0.5 + Math.sin(t * 23.3) * 0.5) * (dh * 0.006) * k.jitter;
+      var rollKick = (Math.sin(stepped * STEPS * 3.7) ) * (dh * 0.004);
+      // pan from +maxY (top of image shown) toward -maxY*0.92 (almost the bottom)
+      panY = maxY - stepped * (maxY * 1.92) + jit + rollKick;
+      panY = Math.max(-maxY, Math.min(maxY, panY));
+      // tiny horizontal weave so it's not a dead-straight slide
+      panX = Math.sin(t * 1.7) * (maxX * 0.12 + W * 0.004);
+      panX = Math.max(-maxX, Math.min(maxX, panX));
+    } else {
+      // --- floaty cropped-aware pan (wide / fitting pieces) ---
+      var overX = Math.max(0, dw - W), overY = Math.max(0, dh - H);
+      var travelX = (Math.min(overX, W * 0.6) * 0.85 + W * 0.03) * k.jitter;
+      var travelY = (Math.min(overY, H * 0.6) * 0.85 + H * 0.03) * k.jitter;
+      var phase = tt - 0.5;
+      panX = Math.cos(k.dir) * travelX * phase;
+      panY = Math.sin(k.dir) * travelY * phase;
+      panX = Math.max(-maxX, Math.min(maxX, panX));
+      panY = Math.max(-maxY, Math.min(maxY, panY));
+    }
     cctx.save(); cctx.globalAlpha = alpha;
     if (cctx.filter !== undefined) cctx.filter = GRADE;
     try { cctx.drawImage(m, (W - dw) / 2 + panX, (H - dh) / 2 + panY, dw, dh); } catch (e) {}
