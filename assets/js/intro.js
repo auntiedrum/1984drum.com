@@ -101,19 +101,100 @@
 
   function kb() {
     var a = visRand();
-    return { z0: 1.04 + visRand() * 0.03, z1: 1.12 + visRand() * 0.05, px: Math.cos(a * 6.28) * 0.04, py: Math.sin(a * 6.28) * 0.035 };
+    return { z0: 1.04 + visRand() * 0.03, z1: 1.12 + visRand() * 0.05, dir: a * 6.28, jitter: 0.6 + visRand() * 0.5 };
   }
+  // the 70s grade — faded, warm, slightly desaturated. Applied to the source pixels as
+  // we draw. (The drawing clips are already baked filmic; a touch more is harmless and
+  // keeps the whole frame consistent.)
+  var GRADE = 'sepia(0.32) saturate(0.78) contrast(0.94) brightness(1.05)';
   function drawCover(m, k, t, alpha) {
     if (!ready(m)) return;
     if (m._isVideo && m.paused) m.play().catch(function () {});
-    var z = k.z0 + (k.z1 - k.z0) * t;
+    // CROP-AWARE PAN SPEED: how far the piece overflows the 16:10 frame. Pieces that
+    // are badly cropped (tall portraits, wide panoramas) get a faster pan so viewers
+    // see the off-screen parts within the brisk dwell; pieces that fit stay slow/floaty.
+    var ir0 = mW(m) / mH(m), br0 = W / H;
+    var overflowRatio = ir0 > br0 ? (ir0 / br0) : (br0 / ir0);   // 1 = fits, >1 = cropped
+    var speed = 1 + Math.min(1.6, (overflowRatio - 1) * 2.2);    // up to ~2.6x faster
+    var tt = Math.min(1, t * speed);
+
+    var z = k.z0 + (k.z1 - k.z0) * tt;
     var ir = mW(m) / mH(m), br = W / H, bw, bh;
     if (ir > br) { bh = H; bw = H * ir; } else { bw = W; bh = W / ir; }
     var dw = bw * z, dh = bh * z;
-    var panX = (k.px * t - k.px * 0.5) * W, panY = (k.py * t - k.py * 0.5) * H;
+    // travel distance also scales with how far the scaled image overflows the frame.
+    var overX = Math.max(0, dw - W), overY = Math.max(0, dh - H);
+    // base floaty travel, plus extra proportional to the overflow (capped so it stays gentle)
+    var travelX = (Math.min(overX, W * 0.6) * 0.85 + W * 0.03) * k.jitter;
+    var travelY = (Math.min(overY, H * 0.6) * 0.85 + H * 0.03) * k.jitter;
+    var phase = tt - 0.5;
+    var panX = Math.cos(k.dir) * travelX * phase;
+    var panY = Math.sin(k.dir) * travelY * phase;
+    // clamp so we never pan past the image edge (no empty gaps)
+    panX = Math.max(-(dw - W) / 2, Math.min((dw - W) / 2, panX));
+    panY = Math.max(-(dh - H) / 2, Math.min((dh - H) / 2, panY));
     cctx.save(); cctx.globalAlpha = alpha;
+    if (cctx.filter !== undefined) cctx.filter = GRADE;
     try { cctx.drawImage(m, (W - dw) / 2 + panX, (H - dh) / 2 + panY, dw, dh); } catch (e) {}
     cctx.restore();
+  }
+
+  // ---- film grain + vignette overlay (the 70s vibe, drawn over the whole frame) ----
+  var grainTile = null, grainSize = 180, vignetteCache = null, vigKey = '';
+  function buildGrain() {
+    grainTile = document.createElement('canvas');
+    grainTile.width = grainSize; grainTile.height = grainSize;
+    var g = grainTile.getContext('2d');
+    var img = g.createImageData(grainSize, grainSize);
+    var d = img.data;
+    for (var i = 0; i < d.length; i += 4) {
+      var v = (visRand() * 255) | 0;
+      d[i] = d[i + 1] = d[i + 2] = v;
+      d[i + 3] = 38;                    // grain strength (alpha)
+    }
+    g.putImageData(img, 0, 0);
+  }
+  function ensureVignette() {
+    var key = W + 'x' + H;
+    if (vigKey === key && vignetteCache) return;
+    vigKey = key;
+    vignetteCache = document.createElement('canvas');
+    vignetteCache.width = W; vignetteCache.height = H;
+    var g = vignetteCache.getContext('2d');
+    var grd = g.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.30, W / 2, H / 2, Math.max(W, H) * 0.72);
+    grd.addColorStop(0, 'rgba(0,0,0,0)');
+    grd.addColorStop(0.7, 'rgba(20,12,4,0.12)');
+    grd.addColorStop(1, 'rgba(15,8,2,0.52)');
+    g.fillStyle = grd; g.fillRect(0, 0, W, H);
+  }
+  function drawFilmOverlay(now) {
+    if (!grainTile) buildGrain();
+    ensureVignette();
+    // moving grain — tile it with a per-frame offset so it shimmers like real film
+    var ox = ((visRand() * grainSize) | 0), oy = ((visRand() * grainSize) | 0);
+    cctx.save();
+    cctx.globalCompositeOperation = 'overlay';
+    cctx.globalAlpha = 0.9;
+    for (var y = -oy; y < H; y += grainSize) {
+      for (var x = -ox; x < W; x += grainSize) {
+        cctx.drawImage(grainTile, x, y);
+      }
+    }
+    cctx.restore();
+    // vignette
+    cctx.save();
+    cctx.globalAlpha = 1;
+    cctx.drawImage(vignetteCache, 0, 0);
+    cctx.restore();
+    // subtle whole-frame brightness flicker (warm), like a worn projector lamp
+    var flick = 0.04 * Math.sin(now * 4.1) + 0.025 * Math.sin(now * 11.3);
+    if (flick > 0) {
+      cctx.save();
+      cctx.globalCompositeOperation = 'overlay';
+      cctx.fillStyle = 'rgba(255,238,200,' + Math.min(0.06, flick) + ')';
+      cctx.fillRect(0, 0, W, H);
+      cctx.restore();
+    }
   }
 
   // timeline state: a current index into `gallery`, with Ken-Burns + dissolve between items.
@@ -166,6 +247,8 @@
         setCaption(gallery[idx]); preloadAround(idx);
       }
     }
+    // the 70s film vibe over everything: moving grain, vignette, lamp flicker
+    drawFilmOverlay(now);
     // keep the scrub bar in sync with auto-advance
     if (!scrubbing) setSeekUI(idx / Math.max(1, gallery.length - 1));
   }
