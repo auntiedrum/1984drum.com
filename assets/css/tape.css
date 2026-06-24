@@ -1,0 +1,296 @@
+/*
+ * tape.css — the "Tape Deck": a 16-bit Mega Drive / Streets of Rage styled
+ * boombox. Hand-built with CSS so it's crisp at any size. Twin speakers flank a
+ * central screen where the art visuals play; chunky pixel buttons + sliders below.
+ */
+:root {
+  --sor-bg:      #1a1228;   /* deep night purple (SoR street) */
+  --sor-bg2:     #2a1c3e;
+  --sor-panel:   #3a2c2c;   /* boombox body (warm dark) */
+  --sor-panel2:  #2a1f1f;
+  --sor-metal:   #54607a;   /* grey-blue metal */
+  --sor-metal2:  #39435c;
+  --sor-neon:    #ff3b6b;   /* hot pink neon */
+  --sor-cyan:    #34e2e4;   /* cyan accent */
+  --sor-amber:   #ffb23e;   /* amber/orange */
+  --sor-green:   #46d369;   /* readout green */
+  --sor-screen:  #0c1a14;   /* screen off-black */
+  --px: 3px;                /* base pixel unit */
+}
+
+.tape-page {
+  background:
+    repeating-linear-gradient(0deg, rgba(255,255,255,.02) 0 2px, transparent 2px 4px),
+    radial-gradient(120% 90% at 50% 0%, var(--sor-bg2), var(--sor-bg) 70%);
+  min-height: 60vh;
+  padding: 28px 12px 64px;
+  font-family: 'Roboto Slab', monospace;
+}
+
+.tape-deck {
+  --w: min(960px, 96vw);
+  width: var(--w);
+  margin: 0 auto;
+  image-rendering: pixelated;
+}
+
+/* the boombox body */
+.bb {
+  position: relative;
+  background:
+    linear-gradient(180deg, #4a3838 0%, var(--sor-panel) 12%, var(--sor-panel2) 100%);
+  border: var(--px) solid #0c0a14;
+  border-radius: 10px;
+  box-shadow:
+    0 0 0 var(--px) #5a4646 inset,
+    0 calc(var(--px)*2) 0 #0c0a14,
+    0 18px 40px rgba(0,0,0,.55),
+    0 0 60px rgba(255,59,107,.12);
+  padding: 16px;
+}
+
+/* top: handle + antenna + brand */
+.bb__top {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  padding: 0 18px 12px;
+}
+.bb__handle {
+  width: 42%; height: 16px;
+  border: var(--px) solid #0c0a14;
+  border-bottom: 0;
+  border-radius: 14px 14px 0 0;
+  background: linear-gradient(180deg, var(--sor-metal), var(--sor-metal2));
+  box-shadow: 0 2px 0 rgba(255,255,255,.12) inset;
+}
+.bb__brand {
+  font-weight: 700; letter-spacing: 2px; font-size: clamp(12px, 2.4vw, 20px);
+  color: var(--sor-amber);
+  text-shadow: 0 0 8px var(--sor-amber), 2px 2px 0 #7a3a00;
+  align-self: center;
+}
+.bb__antenna {
+  width: var(--px); height: 26px; align-self: flex-end;
+  background: var(--sor-metal);
+  box-shadow: 6px -10px 0 -1px var(--sor-metal); /* a little diagonal kink */
+  transform: rotate(18deg); transform-origin: bottom;
+}
+
+/* the main row: speaker | screen | speaker */
+.bb__row { display: flex; align-items: stretch; gap: 14px; }
+
+.bb__speaker {
+  flex: 0 0 22%;
+  align-self: center;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 50%, #161018 0 18%, transparent 18%),
+    repeating-radial-gradient(circle at 50% 50%, #241a24 0 5px, #140e16 5px 9px);
+  border: var(--px) solid #0c0a14;
+  box-shadow: 0 0 0 var(--px) #5a4646 inset, 0 6px 14px rgba(0,0,0,.5) inset;
+  position: relative;
+  transition: transform .06s linear;
+}
+.bb__speaker::after { /* center dust cap with a neon ring that pulses */
+  content: ''; position: absolute; inset: 38%;
+  border-radius: 50%;
+  background: radial-gradient(circle, #2a2030, #120c16);
+  box-shadow: 0 0 0 2px var(--sor-neon), 0 0 14px var(--sor-neon);
+  opacity: .5; transition: opacity .1s linear, box-shadow .1s linear;
+}
+.tape-deck.is-playing .bb__speaker::after { opacity: .9; }
+
+/* the central screen (the cassette window) where art plays */
+.bb__screen-wrap {
+  flex: 1 1 auto;
+  border: var(--px) solid #0c0a14;
+  border-radius: 6px;
+  background: #06100c;
+  box-shadow: 0 0 0 var(--px) #5a4646 inset, 0 0 24px rgba(52,226,228,.12) inset;
+  padding: var(--px);
+  position: relative;
+  overflow: hidden;
+}
+.bb__screen {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  background: var(--sor-screen);
+  overflow: hidden;
+  border-radius: 3px;
+}
+.bb__screen canvas { display: block; width: 100%; height: 100%; }
+/* CRT scanlines + subtle vignette over the screen */
+.bb__screen::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background:
+    repeating-linear-gradient(0deg, rgba(0,0,0,.22) 0 1px, transparent 1px 3px),
+    radial-gradient(120% 120% at 50% 50%, transparent 60%, rgba(0,0,0,.45));
+  mix-blend-mode: multiply;
+}
+/* idle overlay (before first play): pixel cassette + prompt */
+.bb__idle {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 10px; text-align: center;
+  color: var(--sor-cyan); z-index: 2;
+  background: linear-gradient(180deg, #08140e, #0c1a14);
+}
+.bb__idle .cassette {
+  width: 92px; height: 58px; position: relative;
+  background: #20303a; border: var(--px) solid #0c0a14; border-radius: 4px;
+  box-shadow: 0 0 0 var(--px) #3a4e5a inset;
+}
+.bb__idle .cassette::before, .bb__idle .cassette::after {
+  content: ''; position: absolute; top: 18px; width: 16px; height: 16px;
+  border-radius: 50%; background: #0c1418; border: 2px solid var(--sor-amber);
+}
+.bb__idle .cassette::before { left: 18px; } .bb__idle .cassette::after { right: 18px; }
+.bb__idle p { font-size: 13px; letter-spacing: 1px; text-shadow: 0 0 6px var(--sor-cyan); margin: 0; }
+.tape-deck.is-started .bb__idle { display: none; }
+
+/* readout strip under the screen: time + status */
+.bb__readout {
+  margin-top: 10px;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  background: #0a0e0c; border: var(--px) solid #0c0a14; border-radius: 4px;
+  padding: 6px 10px; color: var(--sor-green);
+  font-variant-numeric: tabular-nums; letter-spacing: 1px;
+  text-shadow: 0 0 6px var(--sor-green);
+}
+.bb__status { color: var(--sor-amber); text-shadow: 0 0 6px var(--sor-amber); font-size: 12px; }
+.bb__time { font-size: 14px; }
+/* tiny VU meter bars */
+.bb__vu { display: flex; gap: 2px; align-items: flex-end; height: 16px; }
+.bb__vu i { width: 4px; height: 4px; background: #1c3a22; }
+.bb__vu i.on { background: var(--sor-green); box-shadow: 0 0 4px var(--sor-green); }
+.bb__vu i.hot { background: var(--sor-neon); box-shadow: 0 0 4px var(--sor-neon); }
+
+/* controls deck */
+.bb__deck {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 14px 18px;
+  align-items: center;
+  background: linear-gradient(180deg, #2a1f1f, #1f1717);
+  border: var(--px) solid #0c0a14; border-radius: 6px;
+  box-shadow: 0 0 0 var(--px) #5a4646 inset;
+  padding: 14px 16px;
+}
+.bb__transport { display: flex; gap: 10px; }
+.bb__btn {
+  width: 56px; height: 44px;
+  border: var(--px) solid #0c0a14;
+  border-radius: 4px;
+  background: linear-gradient(180deg, var(--sor-metal), var(--sor-metal2));
+  box-shadow: 0 var(--px) 0 #0c0a14, 0 2px 0 rgba(255,255,255,.18) inset;
+  color: #0c0a14; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: transform .05s linear, box-shadow .05s linear, background .1s;
+}
+.bb__btn:active { transform: translateY(var(--px)); box-shadow: 0 0 0 #0c0a14; }
+.bb__btn svg { width: 20px; height: 20px; }
+.bb__btn--play { background: linear-gradient(180deg, var(--sor-green), #2a9c46); }
+.bb__btn--play.is-playing { background: linear-gradient(180deg, var(--sor-amber), #c47a14); }
+.bb__btn--new { background: linear-gradient(180deg, var(--sor-cyan), #1ba0a2); }
+
+/* sliders */
+.bb__sliders { display: flex; flex-direction: column; gap: 10px; }
+.bb__ctl { display: flex; align-items: center; gap: 10px; }
+.bb__ctl label {
+  flex: 0 0 74px; font-size: 11px; letter-spacing: 1px; text-transform: uppercase;
+  color: var(--sor-cyan); text-shadow: 0 0 5px rgba(52,226,228,.5);
+}
+.bb__ctl output { flex: 0 0 46px; text-align: right; font-size: 12px; color: var(--sor-amber); font-variant-numeric: tabular-nums; }
+.bb__range {
+  flex: 1 1 auto; -webkit-appearance: none; appearance: none;
+  height: 12px; background: transparent; cursor: pointer;
+}
+.bb__range::-webkit-slider-runnable-track {
+  height: 12px; background:
+    repeating-linear-gradient(90deg, #15202a 0 6px, #0c141a 6px 12px);
+  border: 2px solid #0c0a14; border-radius: 2px;
+}
+.bb__range::-moz-range-track {
+  height: 12px; background: #15202a; border: 2px solid #0c0a14; border-radius: 2px;
+}
+.bb__range::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 16px; height: 22px; margin-top: -7px;
+  background: linear-gradient(180deg, var(--sor-neon), #b81e47);
+  border: 2px solid #0c0a14; border-radius: 2px;
+  box-shadow: 0 0 8px var(--sor-neon);
+}
+.bb__range::-moz-range-thumb {
+  width: 16px; height: 22px;
+  background: linear-gradient(180deg, var(--sor-neon), #b81e47);
+  border: 2px solid #0c0a14; border-radius: 2px; box-shadow: 0 0 8px var(--sor-neon);
+}
+
+/* ---- ephemeral save modal ---- */
+.tape-save {
+  position: fixed; inset: 0; z-index: 10000;
+  display: none; align-items: center; justify-content: center;
+  background: rgba(10,6,18,.86);
+  font-family: 'Roboto Slab', monospace;
+}
+.tape-save.is-open { display: flex; }
+.tape-save__box {
+  width: min(440px, 92vw);
+  background: linear-gradient(180deg, var(--sor-panel), var(--sor-panel2));
+  border: var(--px) solid #0c0a14; border-radius: 8px;
+  box-shadow: 0 0 0 var(--px) #5a4646 inset, 0 0 50px rgba(255,59,107,.3);
+  padding: 22px; text-align: center; color: #f3e9e0;
+}
+.tape-save__box h3 { margin: 0 0 6px; color: var(--sor-amber); text-shadow: 0 0 8px var(--sor-amber); letter-spacing: 1px; }
+.tape-save__box p { margin: 0 0 14px; font-size: 13px; opacity: .85; }
+.tape-save__timer {
+  font-size: 30px; color: var(--sor-neon); text-shadow: 0 0 12px var(--sor-neon);
+  font-variant-numeric: tabular-nums; margin: 4px 0 12px;
+}
+.tape-save__box input {
+  width: 100%; box-sizing: border-box; padding: 10px 12px; margin-bottom: 12px;
+  background: #0c1418; border: var(--px) solid #0c0a14; color: var(--sor-cyan);
+  font: inherit; font-size: 15px; border-radius: 4px; outline: none;
+}
+.tape-save__box input:focus { box-shadow: 0 0 0 2px var(--sor-cyan); }
+.tape-save__btns { display: flex; gap: 10px; justify-content: center; }
+.tape-save__btns button {
+  font: inherit; padding: 9px 18px; border: var(--px) solid #0c0a14; border-radius: 4px;
+  cursor: pointer; color: #0c0a14; font-weight: 700; letter-spacing: 1px;
+}
+.tape-save__keep { background: linear-gradient(180deg, var(--sor-green), #2a9c46); }
+.tape-save__let  { background: linear-gradient(180deg, var(--sor-metal), var(--sor-metal2)); color: #d8d8e0; }
+
+/* the "explode" flash */
+.tape-boom {
+  position: fixed; inset: 0; z-index: 10001; pointer-events: none;
+  display: none; align-items: center; justify-content: center;
+}
+.tape-boom.is-on { display: flex; animation: tape-boom-flash .7s ease-out forwards; }
+.tape-boom span { font-size: clamp(40px, 12vw, 120px); }
+@keyframes tape-boom-flash {
+  0% { background: rgba(255,255,255,.9); }
+  30% { background: rgba(255,59,107,.5); }
+  100% { background: rgba(255,59,107,0); }
+}
+
+/* saved tapes shelf */
+.tape-shelf { width: min(960px, 96vw); margin: 22px auto 0; }
+.tape-shelf h4 { color: var(--sor-cyan); letter-spacing: 1px; font-size: 13px; text-transform: uppercase; margin: 0 0 10px; }
+.tape-shelf__list { display: flex; flex-wrap: wrap; gap: 10px; }
+.tape-cassette {
+  display: flex; align-items: center; gap: 8px;
+  background: linear-gradient(180deg, #2a3a44, #1c2830);
+  border: var(--px) solid #0c0a14; border-radius: 5px; padding: 8px 12px;
+  color: var(--sor-amber); cursor: pointer; font-size: 12px; letter-spacing: .5px;
+  box-shadow: 0 0 0 2px #3a4e5a inset;
+}
+.tape-cassette:hover { box-shadow: 0 0 0 2px var(--sor-amber) inset; }
+.tape-cassette .reel { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--sor-amber); }
+
+@media (max-width: 560px) {
+  .bb__speaker { flex-basis: 18%; }
+  .bb__deck { grid-template-columns: 1fr; }
+  .bb__transport { justify-content: center; }
+}
