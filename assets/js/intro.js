@@ -119,8 +119,8 @@
   // timeline state: a current index into `gallery`, with Ken-Burns + dissolve between items.
   var idx = 0;                 // current item index
   var vis = { cur: null, curKB: null, curBorn: 0, next: null, nextIdx: 0, nextKB: null, nextStart: 0 };
-  var SWAP_EVERY = 7.0;        // seconds each piece holds before advancing
-  var DISSOLVE = 1.4;
+  var SWAP_EVERY = 4.0;        // brisk — reveal more work faster (~4s/piece)
+  var DISSOLVE = 1.1;
   var KB_SPAN = SWAP_EVERY + DISSOLVE + 1.5;
   var clock = 0, lastT = 0, visTimer = null;
   var scrubbing = false;

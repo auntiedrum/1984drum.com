@@ -14,24 +14,11 @@ html.intro-locked, html.intro-locked body { overflow: hidden; height: 100%; }
   opacity: 1;
 }
 
-/* ---- float the site header/nav transparently OVER the art (homepage only) ---- */
-body.has-intro .site-header {
-  position: fixed; top: 0; left: 0; right: 0; z-index: 900;
-  background: transparent !important;
-  pointer-events: none;            /* let the art receive scrubs except on actual links */
-}
-body.has-intro .site-header a,
-body.has-intro .site-header .hamburger-click-area,
-body.has-intro .site-header nav { pointer-events: auto; }
-/* make the nav text/logo legible on the dark art */
-body.has-intro .site-header nav .gallery-title a {
-  color: #f3ece2 !important; text-shadow: 0 2px 12px rgba(0,0,0,.7);
-}
-body.has-intro .site-header nav .gallery-title a:hover { color: #fff !important; }
-body.has-intro .site-header .logo img { filter: brightness(0) invert(1); opacity: .92; }
-/* the responsive (mobile) slide-out nav already sits at z-index 9998+, keep it clickable */
-body.has-intro .js-responsive-nav { z-index: 9999; }
-body.has-intro .hamburger i { background: #f3ece2; }
+/* ---- the explorer IS the homepage: no nav, no chrome ---- */
+/* hide the site header (logo + New Work/Everything/Tape Deck links) and the mobile nav */
+body.has-intro .site-header,
+body.has-intro .js-responsive-nav,
+body.has-intro .js-hamburger { display: none !important; }
 /* hide the actual page content below — the explorer is the homepage now */
 body.has-intro .site-container { display: none; }
 
