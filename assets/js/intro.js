@@ -112,36 +112,43 @@
     if (m._isVideo && m.paused) m.play().catch(function () {});
     var ir0 = mW(m) / mH(m), br0 = W / H;
     var overflowRatio = ir0 > br0 ? (ir0 / br0) : (br0 / ir0);   // 1 = fits, >1 = cropped
-    // TALL pieces (image clearly narrower than the 16:10 frame) get a dedicated top->bottom
-    // film-roll instead of the floaty pan, so the whole vertical piece is revealed.
-    var isTall = (br0 / ir0) > 1.25;
+    // MOST of the work reads top -> bottom: any piece that's taller-than-wide or roughly
+    // square (image AR <= ~1.05). Genuine wide panoramas keep a horizontal pan instead.
+    var imgAR = mW(m) / mH(m);
+    var readsDown = imgAR <= 1.05;
+    // Judder vs drift is decided by the PIECE's own shape, not the frame: genuinely tall
+    // drawings (portrait, AR < ~0.8) get the stepped analogue film-roll; near-square ones
+    // (~0.8–1.05) get a calm smooth downward drift.
+    var strongRoll = imgAR < 0.8;
 
     var speed = 1 + Math.min(1.6, (overflowRatio - 1) * 2.2);    // up to ~2.6x faster
     var tt = Math.min(1, t * speed);
 
-    var z = k.z0 + (k.z1 - k.z0) * tt;
     var ir = mW(m) / mH(m), br = W / H, bw, bh;
     if (ir > br) { bh = H; bw = H * ir; } else { bw = W; bh = W / ir; }
+    // for near-square pieces that read down, zoom a touch more so there's room to travel
+    var zBoost = (readsDown && !strongRoll) ? 0.10 : 0;
+    var z = k.z0 + (k.z1 - k.z0) * tt + zBoost;
     var dw = bw * z, dh = bh * z;
     var maxY = (dh - H) / 2, maxX = (dw - W) / 2;
     var panX, panY;
 
-    if (isTall && maxY > 2) {
-      // --- TOP -> BOTTOM ANALOGUE FILM ROLL ---
-      // start at the very top edge, glide down through most of the image (eased), so
-      // viewers see all of a tall piece. Motion is STEPPED + jittered like a film frame
-      // slipping in the gate / a TV vertical-hold roll — matches the grain & flicker.
-      var prog = t;                                   // 0..1 across the dwell (un-accelerated)
+    if (readsDown && maxY > 2) {
+      // --- TOP -> BOTTOM read: start at the top edge, glide down through the piece ---
+      var prog = t;                                   // 0..1 across the dwell
       var eased = prog < 0.85 ? (prog / 0.85) : 1;    // ease/settle in the last 15%
       eased = eased * eased * (3 - 2 * eased);         // smoothstep base
-      // quantise into ~14 stepped "frames" so the descent judders instead of gliding
-      var STEPS = 14;
-      var stepped = Math.round(eased * STEPS) / STEPS;
-      // analogue jitter: a few summed sines + a per-step vertical kick, all tiny
-      var jit = (Math.sin(t * 47.0 + k.dir) * 0.5 + Math.sin(t * 23.3) * 0.5) * (dh * 0.006) * k.jitter;
-      var rollKick = (Math.sin(stepped * STEPS * 3.7) ) * (dh * 0.004);
-      // pan from +maxY (top of image shown) toward -maxY*0.92 (almost the bottom)
-      panY = maxY - stepped * (maxY * 1.92) + jit + rollKick;
+      if (strongRoll) {
+        // stepped + jittered analogue film-roll (genuinely tall pieces)
+        var STEPS = 14;
+        var stepped = Math.round(eased * STEPS) / STEPS;
+        var jit = (Math.sin(t * 47.0 + k.dir) * 0.5 + Math.sin(t * 23.3) * 0.5) * (dh * 0.006) * k.jitter;
+        var rollKick = Math.sin(stepped * STEPS * 3.7) * (dh * 0.004);
+        panY = maxY - stepped * (maxY * 1.92) + jit + rollKick;
+      } else {
+        // calm smooth downward drift (shorter / near-square pieces)
+        panY = maxY - eased * (maxY * 1.9);
+      }
       panY = Math.max(-maxY, Math.min(maxY, panY));
       // tiny horizontal weave so it's not a dead-straight slide
       panX = Math.sin(t * 1.7) * (maxX * 0.12 + W * 0.004);
