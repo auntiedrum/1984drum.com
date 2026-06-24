@@ -29,8 +29,9 @@
   // ---------- DOM ----------
   var canvas = root.querySelector('.intro__canvas');
   var cctx = canvas.getContext('2d');
-  var btnSound = root.querySelector('.intro__sound');
-  var seekEl = root.querySelector('.intro__seek');
+  var btnPlay = root.querySelector('.intro__play-btn');
+  var btnMute = root.querySelector('.intro__mute-btn');
+  var seekEl = root.querySelector('.intro__seek');     // optional (may be absent now)
   var seekFill = root.querySelector('.intro__seek-fill');
   var seekKnob = root.querySelector('.intro__seek-knob');
   var capEl = root.querySelector('.intro__caption');
@@ -501,7 +502,8 @@
   }
   function scheduleOnce(when) {
     seq.forEach(function (s) {
-      var buf = buffers[s.clip.id]; if (!buf) return;
+      var buf = buffers[s.clip.id];
+      if (!buf) return;                       // every buffer is loaded before we ever schedule
       var src = actx.createBufferSource(); src.buffer = buf;
       var g = actx.createGain(); src.connect(g); g.connect(master);
       var st = when + s.startAt, xf = Math.max(0.25, s.xfade);
@@ -512,23 +514,36 @@
       g.gain.linearRampToValueAtTime(0.0001, fo + xf);
       try { src.start(st); } catch (e) {}
       try { src.stop(st + s.dur + 0.05); } catch (e) {}
+      // prune finished sources so the array doesn't grow forever
+      src.onended = function () { var i = sources.indexOf(src); if (i >= 0) sources.splice(i, 1); };
       sources.push(src);
     });
   }
   function seqDuration() { if (!seq.length) return LOOP_TARGET; var l = seq[seq.length - 1]; return l.startAt + l.dur; }
+  var schedHorizon = 0;   // ctx time we've scheduled audio up to
   function startAudio() {
     if (audioStarted) return; audioStarted = true;
     ensureCtx();
     seq = buildSequence();
     var ids = []; seq.forEach(function (s) { if (ids.indexOf(s.clip.id) < 0) ids.push(s.clip.id); });
-    Promise.all(ids.slice(0, 6).map(loadBuffer)).then(function () {
-      var when = actx.currentTime + 0.1; aT0 = when; scheduleOnce(when);
+    // Load ALL buffers first (settle, not all) so no clip is ever silently skipped at
+    // schedule time — the previous "schedule after 6" left growing gaps that killed the
+    // mix ~2/3 through. Then schedule the first pass and keep extending the schedule
+    // continuously so it never runs out.
+    Promise.all(ids.map(function (id) { return loadBuffer(id).catch(function () { return null; }); })).then(function () {
       var dur = seqDuration();
+      var when = actx.currentTime + 0.15; aT0 = when;
+      scheduleOnce(when);              // pass 1
+      scheduleOnce(when + dur);        // pass 2 — already queued so there's never a gap
+      schedHorizon = when + 2 * dur;
+      // keep at least ~one extra loop scheduled ahead at all times
       loopTimer = setInterval(function () {
         if (!actx) return;
-        if (aT0 + dur - actx.currentTime < dur * 0.5) { aT0 += dur; scheduleOnce(aT0); }
-      }, 2000);
-      ids.slice(6).reduce(function (p, id) { return p.then(function () { return loadBuffer(id).catch(function () {}); }); }, Promise.resolve());
+        while (schedHorizon - actx.currentTime < dur * 1.2) {
+          scheduleOnce(schedHorizon);
+          schedHorizon += dur;
+        }
+      }, 3000);
     });
   }
   function fadeAudio(target, secs) {
@@ -538,21 +553,35 @@
     master.gain.setValueAtTime(Math.max(0.0001, master.gain.value), now);
     master.gain.linearRampToValueAtTime(Math.max(0.0001, target), now + secs);
   }
-  function setSound(on) {
-    audioOn = on;
-    if (on) {
-      if (actx && actx.state === 'suspended') actx.resume();
-      startAudio();
-      fadeAudio(VOL, FADE_IN);   // 5-second fade-in
-    } else {
-      fadeAudio(0.0001, 0.6);
-    }
-    btnSound.classList.toggle('is-on', on);
-    btnSound.setAttribute('aria-pressed', on ? 'true' : 'false');
-    var lbl = btnSound.querySelector('.intro__sound-label');
-    if (lbl) lbl.textContent = on ? 'Sound on' : 'Tap for sound';
+  // ---- minimal player: play/pause (start vs suspend) + mute (silence while playing) ----
+  var playing = false, muted = false;
+  function refreshPlayerUI() {
+    if (btnPlay) { btnPlay.classList.toggle('is-playing', playing); btnPlay.setAttribute('aria-pressed', playing ? 'true' : 'false'); }
+    if (btnMute) { btnMute.classList.toggle('is-muted', muted); btnMute.setAttribute('aria-pressed', muted ? 'true' : 'false'); }
   }
-  btnSound.addEventListener('click', function (e) { e.stopPropagation(); setSound(!audioOn); });
+  // `audioOn` (used by grid-ducking) means "currently audible"
+  function applyAudioLevel(secs) {
+    audioOn = playing && !muted;
+    fadeAudio(audioOn ? VOL : 0.0001, secs);
+  }
+  function setPlaying(on) {
+    playing = on;
+    if (on) {
+      ensureCtx();
+      if (actx && actx.state === 'suspended') actx.resume();
+      startAudio();                                  // first play kicks off the mix (no-op after)
+      applyAudioLevel(audioStarted ? 1.0 : FADE_IN); // gentle fade in on first start
+    } else {
+      // pause: fade out, then suspend the context so the music truly stops
+      applyAudioLevel(0.4);
+      setTimeout(function () { if (!playing && actx && actx.state === 'running') actx.suspend(); }, 450);
+    }
+    refreshPlayerUI();
+  }
+  function setMuted(on) { muted = on; applyAudioLevel(0.25); refreshPlayerUI(); }
+  if (btnPlay) btnPlay.addEventListener('click', function (e) { e.stopPropagation(); setPlaying(!playing); });
+  if (btnMute) btnMute.addEventListener('click', function (e) { e.stopPropagation(); setMuted(!muted); });
+  refreshPlayerUI();
 
   // ============================================================
   //  MASONRY GRID  <->  MONTAGE  (toggled by the 1984drum wordmark)
@@ -747,7 +776,7 @@
     gridEl.setAttribute('aria-hidden', 'true');
     closeLightbox();
     freshMontage();                              // come back to a NEW montage
-    if (audioOn) fadeAudio(VOL, 1.2);
+    applyAudioLevel(1.2);                         // un-duck (respects play/mute state)
   }
   // wordmark: in the MONTAGE it opens the GALLERY (grid); in the GALLERY it returns to /
   // plays a MONTAGE. Its hover label/icon swap to match (see CSS + the markup spans).

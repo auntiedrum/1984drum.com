@@ -37,48 +37,35 @@ body.has-intro .site-container { display: none; }
 }
 
 /* ---- bottom control row: sound toggle + scrub bar ---- */
+/* minimal audio player bar — play/pause on the left, mute/unmute on the right */
 .intro__bar {
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 3;
-  display: flex; align-items: center; gap: 16px;
-  padding: 26px clamp(18px, 4vw, 48px) 30px;
-  background: linear-gradient(to top, rgba(0,0,0,.6), rgba(0,0,0,.15) 70%, transparent);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px clamp(16px, 4vw, 40px) calc(16px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(to top, rgba(0,0,0,.62), rgba(0,0,0,.12) 75%, transparent);
+  pointer-events: none;   /* only the buttons catch taps; rest of the bar is pass-through */
 }
-
-/* tap-for-sound pill */
-.intro__sound {
-  flex: 0 0 auto;
-  display: inline-flex; align-items: center; gap: 10px;
-  padding: 11px 18px;
-  border: 1px solid rgba(255,255,255,.35);
-  border-radius: 999px;
-  background: rgba(0,0,0,.35);
-  color: #f3ece2; cursor: pointer;
-  font-family: 'Roboto Slab', serif; font-size: 14px; letter-spacing: .4px;
-  transition: background .2s ease, border-color .2s ease, transform .08s ease;
+.intro__play-btn, .intro__mute-btn {
+  pointer-events: auto; flex: 0 0 auto;
+  width: 48px; height: 48px; border: 0; border-radius: 50%;
+  background: rgba(0,0,0,.4); color: #f3ece2; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
   -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+  transition: background .2s ease, transform .08s ease;
+  -webkit-tap-highlight-color: transparent;
 }
-.intro__sound:hover { background: rgba(0,0,0,.55); border-color: #fff; }
-.intro__sound:active { transform: scale(.97); }
-.intro__sound svg { width: 18px; height: 18px; fill: currentColor; flex: 0 0 auto; }
-.intro__sound .intro__sound-on { display: none; }
-.intro__sound.is-on .intro__sound-off { display: none; }
-.intro__sound.is-on .intro__sound-on { display: inline; }
-.intro__sound.is-on { border-color: #34e2e4; color: #cfeff0; }
-
-/* scrub bar — drag to move through the artwork at your own pace */
-.intro__seek { flex: 1 1 auto; height: 24px; display: flex; align-items: center; cursor: pointer; touch-action: none; }
-.intro__seek-track { position: relative; width: 100%; height: 5px; background: rgba(255,255,255,.25); border-radius: 3px; }
-.intro__seek-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: #f3ece2; border-radius: 3px; }
-.intro__seek-knob {
-  position: absolute; top: 50%; left: 0; width: 14px; height: 14px; margin: -7px 0 0 -7px;
-  border-radius: 50%; background: #fff; box-shadow: 0 0 8px rgba(255,255,255,.7);
-  transition: transform .12s ease;
-}
-.intro__seek:hover .intro__seek-knob,
-.intro__seek.is-dragging .intro__seek-knob,
-.intro__seek:focus .intro__seek-knob { transform: scale(1.25); }
-.intro__seek:focus { outline: none; }
-.intro__seek:focus .intro__seek-track { box-shadow: 0 0 0 2px rgba(52,226,228,.5); }
+.intro__play-btn:hover, .intro__mute-btn:hover { background: rgba(0,0,0,.6); }
+.intro__play-btn:active, .intro__mute-btn:active { transform: scale(.92); }
+.intro__play-btn svg, .intro__mute-btn svg { width: 22px; height: 22px; fill: currentColor; }
+/* play/pause icon swap */
+.intro__ico-pause { display: none; }
+.intro__play-btn.is-playing .intro__ico-play { display: none; }
+.intro__play-btn.is-playing .intro__ico-pause { display: block; }
+/* mute icon swap */
+.intro__ico-muted { display: none; }
+.intro__mute-btn.is-muted .intro__ico-unmuted { display: none; }
+.intro__mute-btn.is-muted .intro__ico-muted { display: block; }
+.intro__mute-btn.is-muted { color: #ff8a8a; }
 
 /* current-piece caption — centred on screen */
 .intro__caption {
@@ -218,8 +205,8 @@ body.has-intro .site-container { display: none; }
 .intro__lightbox-close:hover { background: rgba(255,255,255,.22); }
 
 @media (max-width: 540px) {
-  .intro__bar { gap: 10px; padding: 18px 14px 22px; }
-  .intro__sound { padding: 9px 13px; font-size: 13px; }
-  .intro__caption { bottom: 64px; font-size: 11px; }
+  .intro__bar { padding: 14px 14px calc(14px + env(safe-area-inset-bottom, 0px)); }
+  .intro__play-btn, .intro__mute-btn { width: 52px; height: 52px; }  /* bigger tap targets on mobile */
+  .intro__caption { font-size: 11px; }
   .intro__grid { padding: 72px 12px 32px; }
 }
