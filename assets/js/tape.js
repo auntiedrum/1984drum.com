@@ -86,12 +86,31 @@
     // energy arc so the tape breathes (calm -> peak -> calm), like the Journey mix.
     for (var i = pool.length - 1; i > 0; i--) { var j = Math.floor(rand() * (i + 1)); var t = pool[i]; pool[i] = pool[j]; pool[j] = t; }
     function arc(p) { return 0.15 + 0.8 * Math.sin(Math.min(p, 0.85) / 0.85 * Math.PI * 0.92); }
+
+    // The X/Twitter clip must always land in the first 3–6 minutes. Pull it out of
+    // the normal greedy fill, and inject it once the running time crosses a seeded
+    // target inside that window.
+    var FEATURE_ID = 'xtwittermfrst';
+    var featureClip = null;
+    pool = pool.filter(function (c) { if (c.id === FEATURE_ID) { featureClip = c; return false; } return true; });
+    // Target window 3:00–6:00. We inject the clip on the first iteration AFTER the
+    // running total passes `featureAt`, so placement can overshoot by up to one
+    // clip-length (~60s); aim the target at 185–290s so the actual start stays
+    // comfortably inside the 180–360s window.
+    var featureAt = featureClip ? (185 + rand() * 105) : -1;
+    var featurePlaced = !featureClip;
+
     var seq = [], used = {};
     // start on a low-energy clip
     var start = pool.reduce(function (m, c) { return c.e < m.e ? c : m; }, pool[0]);
     seq.push(start); used[start.id] = 1;
     var total = start.dur;
     while (total < MIX_SECONDS) {
+      // inject the feature clip when we reach its target time
+      if (!featurePlaced && total >= featureAt) {
+        seq.push(featureClip); used[featureClip.id] = 1; total += featureClip.dur; featurePlaced = true;
+        continue;
+      }
       var last = seq[seq.length - 1], pos = total / MIX_SECONDS, best = null, bestC = 1e9;
       for (var k = 0; k < pool.length; k++) {
         var c = pool[k];
@@ -104,6 +123,8 @@
       if (!best) break;
       seq.push(best); used[best.id] = (used[best.id] || 0) + 1; total += best.dur;
     }
+    // safety: if the mix somehow ended before the window (shouldn't at 19 min), force it in
+    if (!featurePlaced && featureClip) { seq.splice(Math.min(seq.length, 4), 0, featureClip); }
     // compute xfades + schedule times
     var out = [], at = 0;
     for (var s = 0; s < seq.length; s++) {
