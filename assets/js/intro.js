@@ -101,7 +101,27 @@
 
   function kb() {
     var a = visRand();
-    return { z0: 1.04 + visRand() * 0.03, z1: 1.12 + visRand() * 0.05, dir: a * 6.28, jitter: 0.6 + visRand() * 0.5 };
+    return {
+      z0: 1.04 + visRand() * 0.03, z1: 1.12 + visRand() * 0.05,
+      dir: a * 6.28, jitter: 0.6 + visRand() * 0.5,
+      // per-piece sway seed + irregular phase offsets (organic, not a clean L-R sine)
+      seed: visRand() * 1000,
+      pOff: [visRand() * 6.28, visRand() * 6.28, visRand() * 6.28],
+      // per-piece ZOOM rhythm: its own tempo + amplitude + phase so the breathing varies
+      zTempo: 0.5 + visRand() * 0.7, zAmp: 0.02 + visRand() * 0.05, zPhase: visRand() * 6.28,
+      // per-piece rotation tempo so the wobble cadence differs too
+      rTempo: 0.6 + visRand() * 0.7
+    };
+  }
+  // smooth pseudo-random "drift then settle" value in [-1,1] from a few mismatched, slow
+  // sines (incommensurate frequencies never repeat cleanly → organic sway that holds then
+  // moves rather than a steady oscillation). `s` shifts the whole pattern per piece/axis.
+  function organic(tt, s) {
+    var v = Math.sin(tt * 0.31 + s) * 0.55
+          + Math.sin(tt * 0.73 + s * 1.7) * 0.30
+          + Math.sin(tt * 1.13 + s * 2.3) * 0.15;
+    // soft-clip + slight easing so it lingers near the extremes (feels like settling)
+    return Math.max(-1, Math.min(1, v * 1.15));
   }
   // the 70s grade — faded, warm, slightly desaturated. Applied to the source pixels as
   // we draw. (The drawing clips are already baked filmic; a touch more is harmless and
@@ -121,39 +141,38 @@
     // (~0.8–1.05) get a calm smooth downward drift.
     var strongRoll = imgAR < 0.8;
 
-    // COVER-FIT everything: stills and clips both FILL the whole screen (zoomed so the
-    // frame is full — no letterbox). The 16mm film look (grade + grain overlay) is kept.
+    // COVER-FIT everything: stills and clips both FILL the whole screen. The 16mm film look
+    // (grade + grain overlay) is kept. Base zoom is modest now — if the handheld movement
+    // exposes a frame edge, that's fine: the NEXT piece is drawn behind (see renderVisual).
     var ir = mW(m) / mH(m), br = W / H, bw, bh;
     if (ir > br) { bh = H; bw = H * ir; } else { bw = W; bh = W / ir; }
-    // Ken-Burns while held: extra zoom headroom so the handheld sway + rotation always have
-    // room and never expose the dark frame edges.
-    var z = 1.14 + 0.08 * (t * t * (3 - 2 * t));
+    // Ken-Burns base zoom + a per-piece breathing rhythm (own tempo/amplitude/phase) so the
+    // zoom never feels uniform across pieces.
+    var hc = clock * (0.9 + k.jitter * 0.5);             // per-piece sway clock
+    var zBase = 1.07 + 0.07 * (t * t * (3 - 2 * t));
+    var zBreath = k.zAmp * organic(clock * k.zTempo, k.seed + k.zPhase);
+    var z = zBase + zBreath;
     var dw = bw * z, dh = bh * z;
     var maxY = (dh - H) / 2, maxX = (dw - W) / 2;
-    // faster directional drift across the dwell (was 0.55 of the slack, now ~0.9)
+    // faster directional drift across the dwell
     var phase = (t - 0.5);
     var panX = Math.cos(k.dir) * maxX * 0.9 * phase;
     var panY = Math.sin(k.dir) * maxY * 0.9 * phase;
-    if (readsDown) panY = (0.28 - phase * 0.7) * maxY;   // livelier downward read
+    if (readsDown) panY = (0.28 - phase * 0.7) * maxY;
 
-    // HANDHELD SWAY: a continuous, time-based bob — a couple of summed sines on each axis
-    // (sideways stronger than vertical) so it feels like a person holding the camera. Uses
-    // the absolute clock so it's smooth regardless of the dwell, scaled to the frame.
-    var hc = clock * (0.9 + k.jitter * 0.5);             // per-piece sway tempo
-    var swayX = (Math.sin(hc * 1.7 + k.dir) * 0.6 + Math.sin(hc * 0.9 + 1.3) * 0.4) * W * 0.018;
-    var swayY = (Math.sin(hc * 1.3 + 2.1) * 0.6 + Math.sin(hc * 2.3) * 0.4) * H * 0.011;
+    // HANDHELD SWAY: organic, irregular — drifts one way, settles, then moves again (not a
+    // clean L-R oscillation). Sideways stronger than vertical. Allowed to push past the
+    // edge; the backing layer covers any exposed margin.
+    var swayX = organic(hc, k.pOff[0]) * W * 0.030;
+    var swayY = organic(hc * 0.85, k.pOff[1] + 2.0) * H * 0.018;
     panX += swayX; panY += swayY;
-    // tiny rotation wobble for the handheld feel
-    var rot = (Math.sin(hc * 0.8 + k.dir) * 0.5 + Math.sin(hc * 1.9) * 0.5) * 0.006;
-
-    panX = Math.max(-maxX, Math.min(maxX, panX));
-    panY = Math.max(-maxY, Math.min(maxY, panY));
+    // bigger handheld rotation wobble, also organic + per-piece tempo
+    var rot = organic(clock * k.rTempo, k.pOff[2] + 1.1) * 0.018;
 
     var bx = (W - dw) / 2 + panX, by = (H - dh) / 2 + panY;
     cctx.save();
     cctx.globalAlpha = alpha;
     if (cctx.filter !== undefined) cctx.filter = GRADE;
-    // apply the tiny handheld rotation about the frame centre
     cctx.translate(W / 2, H / 2); cctx.rotate(rot); cctx.translate(-W / 2, -H / 2);
     try { cctx.drawImage(m, bx, by, dw, dh); } catch (e) {}
     cctx.restore();
@@ -293,8 +312,28 @@
     i = ((i % gallery.length) + gallery.length) % gallery.length;
     idx = i;
     vis.cur = getMedia(gallery[i]); vis.curKB = kb(); vis.curBorn = now; vis.next = null;
+    // the piece that will be revealed BEHIND the current one if its handheld movement
+    // exposes a frame edge (so the margin shows the next image, never black).
+    var ni = (i + 1) % gallery.length;
+    if (isTwin(gallery[i]) && isTwin(gallery[ni])) ni = (ni + 1) % gallery.length;
+    backIdx = ni; backMedia = getMedia(gallery[ni]);
     spliceAt = now;
     setCaption(gallery[i]); preloadAround(i);
+  }
+  var backIdx = 0, backMedia = null;
+  // draw a piece as a STATIC full-cover fill (no handheld motion) — used as the backing
+  // layer behind the current piece.
+  function drawStaticCover(m) {
+    if (!ready(m)) return;
+    if (m._isVideo && m.paused) m.play().catch(function () {});
+    var ir = mW(m) / mH(m), br = W / H, bw, bh;
+    if (ir > br) { bh = H; bw = H * ir; } else { bw = W; bh = W / ir; }
+    var z = 1.04, dw = bw * z, dh = bh * z;
+    cctx.save();
+    cctx.globalAlpha = 1;
+    if (cctx.filter !== undefined) cctx.filter = GRADE;
+    try { cctx.drawImage(m, (W - dw) / 2, (H - dh) / 2, dw, dh); } catch (e) {}
+    cctx.restore();
   }
 
   function renderVisual(now) {
@@ -311,7 +350,10 @@
       if (isTwin(gallery[idx]) && isTwin(gallery[ni])) ni = (ni + 1) % gallery.length;
       cutTo(ni, now);
     }
-    // draw the current piece, full-frame (twins egg shows both)
+    // backing layer: the NEXT piece, static & full-cover, so any edge the current piece's
+    // handheld movement exposes reveals the upcoming image rather than black.
+    if (backMedia && !isTwin(gallery[idx])) drawStaticCover(backMedia);
+    // draw the current piece on top, full-frame with its handheld motion (twins egg shows both)
     if (isTwin(gallery[idx])) drawTwins(1, null);
     else drawCover(vis.cur, vis.curKB, Math.min(1, (now - vis.curBorn) / KB_SPAN), 1);
     // the 70s film vibe over everything: grain, vignette, lamp flicker — plus the splice flash
