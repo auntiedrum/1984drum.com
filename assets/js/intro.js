@@ -745,20 +745,13 @@
     freshMontage();                              // come back to a NEW montage
     if (audioOn) fadeAudio(VOL, 1.2);
   }
-  // wordmark: in the montage it PLAYS ANOTHER montage (next of the 4); in the grid it
-  // returns to the montage. (Its hover turns into a glitchy play button — see CSS.)
+  // wordmark: in the MONTAGE it opens the GALLERY (grid); in the GALLERY it returns to /
+  // plays a MONTAGE. Its hover label/icon swap to match (see CSS + the markup spans).
   titleEl.addEventListener('click', function (e) {
     e.stopPropagation();
-    if (root.classList.contains('is-grid')) { exitGrid(); return; }
     if (landing.active) return;                  // ignore during the opening landing
-    freshMontage();                              // play another montage
-    spliceAt = clock;                            // splice flash on the change
-  });
-  // top-right X — opens the grid (and closes it again if already open)
-  var closeEl = root.querySelector('.intro__close');
-  if (closeEl) closeEl.addEventListener('click', function (e) {
-    e.stopPropagation();
-    if (root.classList.contains('is-grid')) exitGrid(); else enterGrid();
+    if (root.classList.contains('is-grid')) exitGrid();   // -> play a montage
+    else enterGrid();                                     // -> open the gallery
   });
   window.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') { if (root.classList.contains('is-lightbox')) closeLightbox(); else if (gridMode) exitGrid(); }
