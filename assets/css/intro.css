@@ -1,22 +1,39 @@
 /*
- * intro.css — full-screen homepage intro overlay.
- * A fixed, full-viewport drawing-video stage with a slow Ken-Burns cycle, a single
- * "tap for sound" control and an "enter" affordance. Fades out on dismiss to reveal
- * the page underneath.
+ * intro.css — the homepage art + music explorer.
+ * A fixed, full-viewport stage cycling the whole library (artworks + drawing clips) with
+ * a slow Ken-Burns drift. A "tap for sound" control fades in a live music mix; a scrub
+ * bar lets visitors move through the artwork at their own pace. This IS the homepage.
  */
 
-/* lock scroll while the intro is up */
-html.intro-open, html.intro-open body { overflow: hidden; }
+/* lock page scroll — the explorer fills the viewport; nav still floats on top */
+html.intro-locked, html.intro-locked body { overflow: hidden; height: 100%; }
 
 .intro {
-  position: fixed; inset: 0; z-index: 9000;
+  position: fixed; inset: 0; z-index: 800;   /* above page, below the site nav/header */
   background: #06100c;
-  display: none;
-  opacity: 0;
-  transition: opacity .7s ease;
+  opacity: 1;
 }
-.intro.is-open { display: block; opacity: 1; }
-.intro.is-leaving { opacity: 0; pointer-events: none; }
+
+/* ---- float the site header/nav transparently OVER the art (homepage only) ---- */
+body.has-intro .site-header {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 900;
+  background: transparent !important;
+  pointer-events: none;            /* let the art receive scrubs except on actual links */
+}
+body.has-intro .site-header a,
+body.has-intro .site-header .hamburger-click-area,
+body.has-intro .site-header nav { pointer-events: auto; }
+/* make the nav text/logo legible on the dark art */
+body.has-intro .site-header nav .gallery-title a {
+  color: #f3ece2 !important; text-shadow: 0 2px 12px rgba(0,0,0,.7);
+}
+body.has-intro .site-header nav .gallery-title a:hover { color: #fff !important; }
+body.has-intro .site-header .logo img { filter: brightness(0) invert(1); opacity: .92; }
+/* the responsive (mobile) slide-out nav already sits at z-index 9998+, keep it clickable */
+body.has-intro .js-responsive-nav { z-index: 9999; }
+body.has-intro .hamburger i { background: #f3ece2; }
+/* hide the actual page content below — the explorer is the homepage now */
+body.has-intro .site-container { display: none; }
 
 .intro__canvas {
   position: absolute; inset: 0;
@@ -32,18 +49,19 @@ html.intro-open, html.intro-open body { overflow: hidden; }
   background: radial-gradient(120% 120% at 50% 45%, transparent 55%, rgba(0,0,0,.35));
 }
 
-/* ---- bottom control row: sound toggle + enter ---- */
+/* ---- bottom control row: sound toggle + scrub bar ---- */
 .intro__bar {
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 3;
-  display: flex; align-items: center; justify-content: center; gap: 18px;
-  padding: 0 20px 40px;
-  flex-wrap: wrap;
+  display: flex; align-items: center; gap: 16px;
+  padding: 26px clamp(18px, 4vw, 48px) 30px;
+  background: linear-gradient(to top, rgba(0,0,0,.6), rgba(0,0,0,.15) 70%, transparent);
 }
 
 /* tap-for-sound pill */
 .intro__sound {
+  flex: 0 0 auto;
   display: inline-flex; align-items: center; gap: 10px;
-  padding: 12px 20px;
+  padding: 11px 18px;
   border: 1px solid rgba(255,255,255,.35);
   border-radius: 999px;
   background: rgba(0,0,0,.35);
@@ -60,29 +78,29 @@ html.intro-open, html.intro-open body { overflow: hidden; }
 .intro__sound.is-on .intro__sound-on { display: inline; }
 .intro__sound.is-on { border-color: #34e2e4; color: #cfeff0; }
 
-/* enter / dismiss affordance */
-.intro__enter {
-  display: inline-flex; align-items: center; gap: 8px;
-  padding: 12px 22px;
-  border: 0; border-radius: 999px;
-  background: rgba(255,255,255,.92); color: #0c1410;
-  cursor: pointer; font-family: 'Roboto Slab', serif; font-size: 14px;
-  font-weight: 500; letter-spacing: .4px;
-  transition: background .2s ease, transform .08s ease;
+/* scrub bar — drag to move through the artwork at your own pace */
+.intro__seek { flex: 1 1 auto; height: 24px; display: flex; align-items: center; cursor: pointer; touch-action: none; }
+.intro__seek-track { position: relative; width: 100%; height: 5px; background: rgba(255,255,255,.25); border-radius: 3px; }
+.intro__seek-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: #f3ece2; border-radius: 3px; }
+.intro__seek-knob {
+  position: absolute; top: 50%; left: 0; width: 14px; height: 14px; margin: -7px 0 0 -7px;
+  border-radius: 50%; background: #fff; box-shadow: 0 0 8px rgba(255,255,255,.7);
+  transition: transform .12s ease;
 }
-.intro__enter:hover { background: #fff; }
-.intro__enter:active { transform: scale(.97); }
-.intro__enter svg { width: 16px; height: 16px; }
+.intro__seek:hover .intro__seek-knob,
+.intro__seek.is-dragging .intro__seek-knob,
+.intro__seek:focus .intro__seek-knob { transform: scale(1.25); }
+.intro__seek:focus { outline: none; }
+.intro__seek:focus .intro__seek-track { box-shadow: 0 0 0 2px rgba(52,226,228,.5); }
 
-/* gentle "scroll to enter" hint, centered low, fading pulse */
-.intro__hint {
-  position: absolute; left: 0; right: 0; bottom: 18px; z-index: 2;
-  text-align: center; color: rgba(243,236,226,.6);
-  font-family: 'Roboto Slab', serif; font-size: 11px; letter-spacing: 1.5px;
-  text-transform: uppercase; pointer-events: none;
-  animation: intro-hint 2.6s ease-in-out infinite;
+/* current-piece caption, bottom-left above the bar */
+.intro__caption {
+  position: absolute; left: clamp(18px, 4vw, 48px); bottom: 76px; z-index: 3;
+  color: rgba(243,236,226,.82); font-family: 'Roboto Slab', serif;
+  font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase;
+  pointer-events: none; text-shadow: 0 2px 12px rgba(0,0,0,.7);
+  transition: opacity .3s ease;
 }
-@keyframes intro-hint { 0%,100% { opacity: .35; } 50% { opacity: .8; } }
 
 /* wordmark / title, top-left, subtle */
 .intro__title {
@@ -94,9 +112,7 @@ html.intro-open, html.intro-open body { overflow: hidden; }
 .intro__title small { display: block; font-size: 11px; opacity: .65; letter-spacing: 2px; text-transform: uppercase; margin-top: 4px; }
 
 @media (max-width: 540px) {
-  .intro__bar { padding-bottom: 56px; gap: 12px; }
-  .intro__hint { bottom: 30px; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .intro__hint { animation: none; }
+  .intro__bar { gap: 10px; padding: 18px 14px 22px; }
+  .intro__sound { padding: 9px 13px; font-size: 13px; }
+  .intro__caption { bottom: 64px; font-size: 11px; }
 }
