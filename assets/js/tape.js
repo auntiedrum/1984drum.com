@@ -56,7 +56,7 @@
   var speed = 1, volume = 0.85;
 
   // ---------- DOM ----------
-  var canvas = root.querySelector('.bb__screen canvas');
+  var canvas = root.querySelector('.tape-stage__canvas') || root.querySelector('canvas');
   var cctx = canvas.getContext('2d');
   var elTime = root.querySelector('.bb__time');
   var elStatus = root.querySelector('.bb__status');
@@ -67,6 +67,9 @@
   var spdRange = root.querySelector('[data-ctl="speed"]');
   var volOut = root.querySelector('[data-out="volume"]');
   var spdOut = root.querySelector('[data-out="speed"]');
+  var idle = root.querySelector('.tape-stage__idle');
+  var progFill = root.querySelector('.tape-bar__prog i');
+  var btnFs = root.querySelector('.tape-fs');
 
   // ---------- load manifests ----------
   Promise.all([
@@ -142,12 +145,22 @@
     ctx = new (window.AudioContext || window.webkitAudioContext)();
     masterGain = ctx.createGain();
     masterGain.gain.value = volume;
-    masterGain.connect(ctx.destination);
-    // a light analyser for the VU meter
+    // Gentle master "glue" limiter: catches the brief peak summing that happens when
+    // two clips overlap during a crossfade, so transitions don't jump in level. Soft
+    // knee, slow-ish attack/release so it's transparent, not pumping.
+    comp = ctx.createDynamicsCompressor();
+    comp.threshold.value = -12;   // only acts on the loud overlap peaks
+    comp.knee.value = 24;         // soft knee = transparent
+    comp.ratio.value = 3;         // gentle
+    comp.attack.value = 0.012;
+    comp.release.value = 0.30;
+    masterGain.connect(comp);
+    comp.connect(ctx.destination);
+    // analyser taps the post-limiter signal for the VU meter
     analyser = ctx.createAnalyser(); analyser.fftSize = 256;
-    masterGain.connect(analyser);
+    comp.connect(analyser);
   }
-  var analyser = null, vuData = null;
+  var analyser = null, vuData = null, comp = null;
 
   // schedule the whole sequence from a given elapsed `offset` (seconds)
   function schedule(fromOffset) {
@@ -228,7 +241,8 @@
     var im = new Image(); im.src = src; imgCache[src] = im; return im;
   }
   var vis = { cur: null, curKB: null, curBorn: 0, next: null, nextKB: null, nextStart: 0, lastSwap: 0 };
-  function kb() { var a = visRand(); return { z0: 1.05 + visRand() * 0.05, z1: 1.15 + visRand() * 0.06, px: Math.cos(a * 6.28) * 0.05, py: Math.sin(a * 6.28) * 0.05 }; }
+  // slow, floaty Ken-Burns: very gentle zoom + slow pan in a random direction
+  function kb() { var a = visRand(); return { z0: 1.04 + visRand() * 0.03, z1: 1.12 + visRand() * 0.05, px: Math.cos(a * 6.28) * 0.04, py: Math.sin(a * 6.28) * 0.035 }; }
   function drawCover(im, k, t, alpha) {
     if (!im || !im.complete || !im.naturalWidth) return;
     var z = k.z0 + (k.z1 - k.z0) * t;
@@ -250,21 +264,25 @@
     return 0.4;
   }
 
-  var SWAP_EVERY = 7; // seconds between art changes
+  // minimal: each artwork dwells a long while, drifting slowly, with a long soft
+  // dissolve to the next. The Ken-Burns `t` runs across the whole dwell+dissolve
+  // so motion is continuous and never resets.
+  var SWAP_EVERY = 14;   // seconds an image holds before the next begins
+  var DISSOLVE = 3.0;    // long, soft cross-dissolve
+  var KB_SPAN = SWAP_EVERY + DISSOLVE + 2;
   function renderVisual(elapsed) {
     cctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     cctx.clearRect(0, 0, W, H);
     var now = elapsed;
     if (!vis.cur) { vis.cur = getImg(pickArt(currentEnergy(now)).disp); vis.curKB = kb(); vis.curBorn = now; vis.lastSwap = now; }
-    // time to swap?
     if (now - vis.lastSwap > SWAP_EVERY && !vis.next) {
       vis.next = getImg(pickArt(currentEnergy(now)).disp); vis.nextKB = kb(); vis.nextStart = now;
     }
-    var curLife = Math.min(1, (now - vis.curBorn) / (SWAP_EVERY + 2));
-    drawCover(vis.cur, vis.curKB, curLife, 1);
+    drawCover(vis.cur, vis.curKB, Math.min(1, (now - vis.curBorn) / KB_SPAN), 1);
     if (vis.next) {
-      var p = Math.min(1, (now - vis.nextStart) / 1.6); // 1.6s dissolve
-      drawCover(vis.next, vis.nextKB, Math.min(1, (now - vis.nextStart) / (SWAP_EVERY + 2)), p);
+      var p = Math.min(1, (now - vis.nextStart) / DISSOLVE);
+      var e = p * p * (3 - 2 * p); // smoothstep
+      drawCover(vis.next, vis.nextKB, Math.min(1, (now - vis.nextStart) / KB_SPAN), e);
       if (p >= 1) { vis.cur = vis.next; vis.curKB = vis.nextKB; vis.curBorn = vis.nextStart; vis.next = null; vis.lastSwap = now; }
     }
   }
@@ -272,26 +290,24 @@
   // ---------- main loop ----------
   function fmt(s) { s = Math.max(0, Math.floor(s)); var m = Math.floor(s / 60); return (m < 10 ? '0' : '') + m + ':' + ((s % 60) < 10 ? '0' : '') + (s % 60); }
   function setStatus(s) { if (elStatus) elStatus.textContent = s; }
-  function tick() {
+  // one render pass
+  function renderFrame() {
     if (!playing) return;
     var elapsed = (ctx.currentTime - t0) * speed;
     if (elapsed >= MIX_SECONDS) { finishMix(); return; }
     renderVisual(elapsed);
     elTime.textContent = fmt(elapsed) + ' / ' + fmt(MIX_SECONDS);
-    drawVU();
-    rafId = requestAnimationFrame(tick);
+    if (progFill) progFill.style.width = (elapsed / MIX_SECONDS * 100).toFixed(2) + '%';
   }
-  function drawVU() {
-    if (!analyser || !elVU) return;
-    if (!vuData) vuData = new Uint8Array(analyser.frequencyBinCount);
-    analyser.getByteFrequencyData(vuData);
-    var bars = elVU.children, n = bars.length;
-    var avg = 0; for (var i = 0; i < vuData.length; i++) avg += vuData[i]; avg /= vuData.length;
-    var lvl = Math.min(n, Math.round(avg / 255 * n * 1.8));
-    for (var b = 0; b < n; b++) {
-      bars[b].className = b < lvl ? (b > n - 3 ? 'hot' : 'on') : '';
-    }
+  // drive with rAF when it's running (smooth) AND a timer fallback (survives rAF
+  // throttling, e.g. a backgrounded tab — the audio keeps playing regardless).
+  function rafLoop() { if (!playing) return; renderFrame(); rafId = requestAnimationFrame(rafLoop); }
+  function tick() {
+    cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(rafLoop);
+    if (!tickTimer) tickTimer = setInterval(function () { if (playing) renderFrame(); }, 40);
   }
+  var tickTimer = null;
 
   // ---------- transport ----------
   function startNewMix() {
@@ -317,14 +333,14 @@
     if (!playing) return;
     offset = (ctx.currentTime - t0) * speed;
     stopSources();
-    playing = false; cancelAnimationFrame(rafId);
-    root.classList.remove('is-playing'); btnPlay.classList.remove('is-playing');
+    playing = false; cancelAnimationFrame(rafId); clearInterval(tickTimer); tickTimer = null;
+    root.classList.remove('is-playing'); root.classList.add('is-paused'); btnPlay.classList.remove('is-playing');
     setStatus('PAUSE'); setPlayIcon(false);
   }
   function resume() {
     ensureCtx(); if (ctx.state === 'suspended') ctx.resume();
     schedule(offset);
-    playing = true; root.classList.add('is-playing'); btnPlay.classList.add('is-playing');
+    playing = true; root.classList.add('is-playing'); root.classList.remove('is-paused'); btnPlay.classList.add('is-playing');
     setStatus('PLAY'); setPlayIcon(true); tick();
   }
   function togglePlay() {
@@ -339,7 +355,33 @@
   }
 
   btnPlay.addEventListener('click', togglePlay);
-  if (btnNew) btnNew.addEventListener('click', function () { stopSources(); started = false; startNewMix(); });
+  if (btnNew) btnNew.addEventListener('click', function () { stopSources(); started = false; root.classList.remove('is-paused'); startNewMix(); });
+  // the big idle overlay also starts playback (click anywhere on the dark screen)
+  if (idle) idle.addEventListener('click', function () { if (!started) startNewMix(); });
+  // clicking the art itself toggles play/pause once started (but not the control bar)
+  canvas.addEventListener('click', function () { if (started && !ended) togglePlay(); });
+
+  // briefly reveal the control bar on any pointer move over the stage, then auto-hide
+  var barHideTimer = null;
+  root.addEventListener('pointermove', function () {
+    root.classList.add('bar-show');
+    clearTimeout(barHideTimer);
+    barHideTimer = setTimeout(function () { if (playing) root.classList.remove('bar-show'); }, 2200);
+  });
+
+  // fullscreen toggle
+  if (btnFs) btnFs.addEventListener('click', function (e) {
+    e.stopPropagation();
+    var fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+    if (fsEl) { (document.exitFullscreen || document.webkitExitFullscreen).call(document); }
+    else {
+      var fn = root.requestFullscreen || root.webkitRequestFullscreen;
+      if (fn) { try { var p = fn.call(root); if (p && p.catch) p.catch(function () {}); } catch (x) {} }
+    }
+  });
+  function onFs() { root.classList.toggle('is-fullscreen', !!(document.fullscreenElement === root || document.webkitFullscreenElement === root)); fitCanvas(); }
+  document.addEventListener('fullscreenchange', onFs);
+  document.addEventListener('webkitfullscreenchange', onFs);
 
   // volume + speed
   function applyVolume() { if (masterGain) masterGain.gain.setTargetAtTime(volume, ctx.currentTime, 0.02); }
@@ -356,7 +398,7 @@
 
   // ---------- finish + ephemeral save ----------
   function finishMix() {
-    playing = false; ended = true; cancelAnimationFrame(rafId); stopSources();
+    playing = false; ended = true; cancelAnimationFrame(rafId); clearInterval(tickTimer); tickTimer = null; stopSources();
     root.classList.remove('is-playing'); btnPlay.classList.remove('is-playing'); setPlayIcon(false);
     setStatus('SIDE A END'); elTime.textContent = fmt(MIX_SECONDS) + ' / ' + fmt(MIX_SECONDS);
     openSaveWindow();

@@ -12,11 +12,11 @@
         <link rel="apple-touch-icon" href="/assets/img/014472dc-ac3d-4c42-96b3-16a013966c35_carw_1x1x180.png" />
     <link rel="canonical" href="https://1984drum.com/tape-deck" />
       <title>1984drum Artist Portfolio - Tape Deck</title>
-  <link rel="stylesheet" href="/assets/css/fonts.css?v=12" />
-  <link rel="stylesheet" href="/assets/css/main.css?v=12" />
-  <link rel="stylesheet" href="/assets/css/theme.css?v=12" />
-  <link rel="stylesheet" href="/assets/css/app.css?v=12" />
-  <link rel="stylesheet" href="/assets/css/tape.css?v=12" />
+  <link rel="stylesheet" href="/assets/css/fonts.css?v=13" />
+  <link rel="stylesheet" href="/assets/css/main.css?v=13" />
+  <link rel="stylesheet" href="/assets/css/theme.css?v=13" />
+  <link rel="stylesheet" href="/assets/css/app.css?v=13" />
+  <link rel="stylesheet" href="/assets/css/tape.css?v=13" />
 </head>
   <body class="transition-enabled">
   <div class="js-responsive-nav">
@@ -69,51 +69,36 @@
       <div class="site-content">
         <main>
   <div class="tape-page">
-    <div id="tape-deck" class="tape-deck" data-base="/assets/tape/">
-      <div class="bb">
-        <div class="bb__top">
-          <div class="bb__handle"></div>
-          <div class="bb__brand">1984&middot;DECK</div>
-          <div class="bb__antenna"></div>
+    <div id="tape-deck" class="tape-stage" data-base="/assets/tape/">
+      <canvas class="tape-stage__canvas" width="1280" height="720"></canvas>
+      <div class="tape-stage__idle">
+        <div class="tape-stage__play"><svg viewBox="0 0 24 24"><path d="M7 5l12 7-12 7z"/></svg></div>
+        <p>PRESS PLAY</p>
+        <p class="sub">a new 19-minute mix &amp; visual every time</p>
+      </div>
+      <div class="tape-bar">
+        <div class="tape-bar__prog"><i></i></div>
+        <button class="tape-bar__btn bb__btn--play" type="button" aria-label="Play / Pause"></button>
+        <button class="tape-bar__btn bb__btn--new" type="button" aria-label="New mix" title="New mix">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 12a8 8 0 0 1 14-5l2 2M20 12a8 8 0 0 1-14 5l-2-2"/><path d="M18 3v4h-4M6 21v-4h4"/></svg>
+        </button>
+        <span class="tape-bar__time"><span class="bb__time">00:00 / 19:00</span></span>
+        <span class="bb__vu" hidden><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+        <span class="tape-bar__spacer"></span>
+        <div class="tape-bar__ctl">
+          <label for="tapeVol">Vol</label>
+          <input id="tapeVol" class="tape-range" data-ctl="volume" type="range" min="0" max="1" step="0.01" value="0.85">
+          <output data-out="volume">85%</output>
         </div>
-        <div class="bb__row">
-          <div class="bb__speaker"></div>
-          <div class="bb__screen-wrap">
-            <div class="bb__screen">
-              <canvas width="640" height="400"></canvas>
-              <div class="bb__idle">
-                <div class="cassette"></div>
-                <p>PRESS PLAY &mdash; A NEW 19-MIN MIX EVERY TIME</p>
-              </div>
-            </div>
-            <div class="bb__readout">
-              <span class="bb__status">INSERT TAPE</span>
-              <span class="bb__time">00:00 / 19:00</span>
-              <span class="bb__vu"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
-            </div>
-          </div>
-          <div class="bb__speaker"></div>
+        <div class="tape-bar__ctl">
+          <label for="tapeSpd">Speed</label>
+          <input id="tapeSpd" class="tape-range" data-ctl="speed" type="range" min="0.5" max="1" step="0.01" value="1">
+          <output data-out="speed">1.00&times;</output>
         </div>
-        <div class="bb__deck">
-          <div class="bb__transport">
-            <button class="bb__btn bb__btn--play" type="button" aria-label="Play / Pause"></button>
-            <button class="bb__btn bb__btn--new" type="button" aria-label="New mix" title="New mix">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M4 12a8 8 0 0 1 14-5l2 2M20 12a8 8 0 0 1-14 5l-2-2"/><path d="M18 3v4h-4M6 21v-4h4"/></svg>
-            </button>
-          </div>
-          <div class="bb__sliders">
-            <div class="bb__ctl">
-              <label for="tapeVol">Volume</label>
-              <input id="tapeVol" class="bb__range" data-ctl="volume" type="range" min="0" max="1" step="0.01" value="0.85">
-              <output data-out="volume">85%</output>
-            </div>
-            <div class="bb__ctl">
-              <label for="tapeSpd">Speed</label>
-              <input id="tapeSpd" class="bb__range" data-ctl="speed" type="range" min="0.5" max="1" step="0.01" value="1">
-              <output data-out="speed">1.00&times;</output>
-            </div>
-          </div>
-        </div>
+        <span class="bb__status tape-bar__status">INSERT TAPE</span>
+        <button class="tape-bar__btn tape-fs" type="button" aria-label="Fullscreen" title="Fullscreen">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 9V4h5v2H6v3H4zm0 6h2v3h3v2H4v-5zm16 0v5h-5v-2h3v-3h2zM20 9h-2V6h-3V4h5v5z"/></svg>
+        </button>
       </div>
     </div>
 
@@ -141,6 +126,6 @@
     </div>
   </div>
 </body>
-  <script src="/assets/js/app.js?v=12"></script>
-  <script src="/assets/js/tape.js?v=12"></script>
+  <script src="/assets/js/app.js?v=13"></script>
+  <script src="/assets/js/tape.js?v=13"></script>
 </html>
