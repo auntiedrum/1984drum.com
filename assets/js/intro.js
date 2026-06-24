@@ -128,23 +128,37 @@
     var maxY = (dh - H) / 2, maxX = (dw - W) / 2;
     var panX, panY;
 
-    // Motion is now GENTLE: the iris reveal does the "arrival"; the dwell only drifts a
-    // little. Reads top -> bottom but covers a calm fraction of the height, not a full sweep.
+    // Downward-reading pieces advance in DELIBERATE STUTTER STEPS — a few big holds, each
+    // resolving sharp, with a vertical motion-blur smear during the jump between holds
+    // (like a film frame being pulled down through the gate). `smear` carries the per-step
+    // blur amount + direction out to the draw block below.
+    var smear = 0;
     if (readsDown && maxY > 2) {
-      var eased = t * t * (3 - 2 * t);                 // smoothstep across the dwell
-      // start a touch above centre, drift gently downward — a small fraction of the range
-      var startFrac = 0.42, travelFrac = strongRoll ? 0.62 : 0.40;  // calmer than before
-      panY = maxY * startFrac - eased * (maxY * travelFrac);
-      if (strongRoll) {
-        // faint analogue judder, much smaller than before so it's subtle not busy
-        var jit = (Math.sin(t * 39.0 + k.dir) * 0.5 + Math.sin(t * 19.7) * 0.5) * (dh * 0.0025) * k.jitter;
-        panY += jit;
-      }
+      var startFrac = 0.42, travelFrac = strongRoll ? 0.66 : 0.46;
+      var span = maxY * travelFrac;                    // total downward travel this dwell
+      var topY = maxY * startFrac;
+      var STEPS = 5;                                   // ~5–6 deliberate steps
+      var HOLD = 0.62;                                 // fraction of each step spent holding (sharp)
+      var sf = Math.min(0.999, t) * STEPS;             // 0..STEPS
+      var stepIdx = Math.floor(sf);                    // which step we're in
+      var within = sf - stepIdx;                       // 0..1 through this step
+      // hold sharp, then jump: position eases from this step to the next during the jump phase
+      var fromY = topY - (stepIdx / STEPS) * span;
+      var toY = topY - (Math.min(STEPS, stepIdx + 1) / STEPS) * span;
+      var jp;                                          // 0 while holding, 0..1 during the jump
+      if (within < HOLD) { jp = 0; }
+      else { var u = (within - HOLD) / (1 - HOLD); jp = u * u * (3 - 2 * u); }
+      panY = fromY + (toY - fromY) * jp;
+      // motion blur scales with how fast we're moving this frame (only during the jump)
+      var jumpDist = Math.abs(toY - fromY);
+      // bell-shaped: peaks mid-jump, zero on the holds → sharp holds, smeared jumps
+      var blurEnv = jp > 0 && jp < 1 ? Math.sin(jp * Math.PI) : 0;
+      smear = (toY - fromY) * blurEnv * 0.9;           // signed vertical smear, px
       panY = Math.max(-maxY, Math.min(maxY, panY));
-      panX = Math.sin(t * 1.3) * (maxX * 0.06);        // barely-there horizontal sway
+      panX = Math.sin(t * 1.1) * (maxX * 0.05);
       panX = Math.max(-maxX, Math.min(maxX, panX));
     } else {
-      // wide / fitting pieces: very gentle floaty drift
+      // wide / fitting pieces: very gentle floaty drift (unchanged)
       var overX = Math.max(0, dw - W), overY = Math.max(0, dh - H);
       var travelX = (Math.min(overX, W * 0.4) * 0.35 + W * 0.015) * k.jitter;
       var travelY = (Math.min(overY, H * 0.4) * 0.35 + H * 0.015) * k.jitter;
@@ -154,9 +168,22 @@
       panX = Math.max(-maxX, Math.min(maxX, panX));
       panY = Math.max(-maxY, Math.min(maxY, panY));
     }
-    cctx.save(); cctx.globalAlpha = alpha;
+    var bx = (W - dw) / 2 + panX, by = (H - dh) / 2 + panY;
+    cctx.save();
     if (cctx.filter !== undefined) cctx.filter = GRADE;
-    try { cctx.drawImage(m, (W - dw) / 2 + panX, (H - dh) / 2 + panY, dw, dh); } catch (e) {}
+    if (Math.abs(smear) > 1.2) {
+      // VERTICAL MOTION BLUR: draw several offset copies along the jump vector at low alpha,
+      // so the moving image smears in the direction of travel, then resolves sharp on the hold.
+      var N = 6;
+      cctx.globalAlpha = alpha / N;
+      for (var s = 0; s < N; s++) {
+        var off = (s / (N - 1) - 0.5) * smear;
+        try { cctx.drawImage(m, bx, by + off, dw, dh); } catch (e) {}
+      }
+    } else {
+      cctx.globalAlpha = alpha;
+      try { cctx.drawImage(m, bx, by, dw, dh); } catch (e) {}
+    }
     cctx.restore();
   }
 
