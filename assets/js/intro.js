@@ -57,13 +57,14 @@
   ]).then(function (res) {
     clips = (res[0].clips || []);
     gallery = (res[1].explore || []);
+    initMontageRotation();     // pick one of the 4 pre-made montages for this visit
     setupLanding();
     fitCanvas();
     startVisuals();
   }).catch(function () { /* overlay still shows; visuals just won't run */ });
 
   // ---------- landing: open on a live drawing clip, slowly zooming, while the montage loads ----------
-  var landing = { active: true, media: null, start: 0, DUR: 3.2 };
+  var landing = { active: true, media: null, start: 0, DUR: 8 };
   function setupLanding() {
     var vids = gallery.filter(function (g) { return g.video; });
     if (!vids.length) { landing.active = false; return; }
@@ -303,8 +304,8 @@
 
   function setCaption(item) {
     if (!capEl || !item) return;
-    if (isTwin(item)) { capEl.textContent = 'THE TWINS — spot the difference (there isn’t one)'; return; }
-    capEl.textContent = item.video ? 'Drawing — time-lapse' : (item.category || '');
+    // minimal: no category labels. Only the twins easter egg shows its one-off caption.
+    capEl.textContent = isTwin(item) ? 'THE TWINS — spot the difference (there isn’t one)' : '';
   }
 
   // draw both twins side by side, each contain-fitted into its half, with a film divider.
@@ -613,18 +614,17 @@
   var titleEl = root.querySelector('.intro__title');
   var gridEl = root.querySelector('.intro__grid');
   var masonryEl = root.querySelector('.intro__grid-masonry');
-  var clipsToggle = root.querySelector('.intro__clips-toggle');
   var lightboxEl = root.querySelector('.intro__lightbox');
   var lightboxStage = root.querySelector('.intro__lightbox-stage');
   var lightboxClose = root.querySelector('.intro__lightbox-close');
-  var showClips = false, gridBuilt = false;
+  var gridBuilt = false;
 
   function buildGrid() {
     masonryEl.innerHTML = '';
-    var items = gallery.filter(function (g) { return showClips || !g.video; });
-    items.forEach(function (item) {
-      var cell = document.createElement('button');
-      cell.type = 'button'; cell.className = 'intro__cell';
+    // show EVERYTHING — artworks AND clips — by default. No category text anywhere.
+    gallery.forEach(function (item) {
+      var cell = document.createElement('div');
+      cell.className = 'intro__cell' + (item.video ? ' is-video' : '');
       var media;
       if (item.video) {
         media = document.createElement('video');
@@ -632,22 +632,43 @@
         media.setAttribute('muted', ''); media.setAttribute('playsinline', '');
         if (item.webm) { var sw = document.createElement('source'); sw.src = item.webm; sw.type = 'video/webm'; media.appendChild(sw); }
         var sm = document.createElement('source'); sm.src = item.disp; sm.type = 'video/mp4'; media.appendChild(sm);
-        media.addEventListener('mouseenter', function () { media.play().catch(function () {}); });
-        media.addEventListener('mouseleave', function () { try { media.pause(); } catch (e) {} });
+        cell.appendChild(media);
+        // draggable progress bar for the clip (shown on hover via CSS)
+        var bar = document.createElement('div'); bar.className = 'intro__cell-bar';
+        var fill = document.createElement('div'); fill.className = 'intro__cell-bar-fill';
+        bar.appendChild(fill); cell.appendChild(bar);
+        wireClipCell(cell, media, bar, fill);
       } else {
         media = document.createElement('img');
         media.loading = 'lazy'; media.decoding = 'async'; media.src = item.disp;
         if (item.w && item.h) { media.width = item.w; media.height = item.h; }
+        cell.appendChild(media);
+        cell.addEventListener('click', function () { openLightbox(item); });
       }
-      cell.appendChild(media);
-      var tag = document.createElement('span');
-      tag.className = 'intro__cell-tag';
-      tag.textContent = item.video ? 'Drawing — clip' : (item.category || '');
-      cell.appendChild(tag);
-      cell.addEventListener('click', function () { openLightbox(item); });
       masonryEl.appendChild(cell);
     });
     gridBuilt = true;
+  }
+
+  // hover plays the clip; the bar reflects/seeks progress; a click that isn't a drag opens it.
+  function wireClipCell(cell, media, bar, fill) {
+    var dragging = false, moved = false;
+    cell.addEventListener('mouseenter', function () { media.play().catch(function () {}); });
+    cell.addEventListener('mouseleave', function () { if (!dragging) { try { media.pause(); } catch (e) {} } });
+    media.addEventListener('timeupdate', function () {
+      if (media.duration) fill.style.width = (media.currentTime / media.duration * 100) + '%';
+    });
+    function seekAt(clientX) {
+      var r = bar.getBoundingClientRect();
+      var frac = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
+      if (media.duration) { media.currentTime = frac * media.duration; fill.style.width = (frac * 100) + '%'; }
+    }
+    bar.addEventListener('mousedown', function (e) { dragging = true; moved = false; seekAt(e.clientX); e.stopPropagation(); e.preventDefault(); });
+    window.addEventListener('mousemove', function (e) { if (dragging) { moved = true; seekAt(e.clientX); } });
+    window.addEventListener('mouseup', function () { dragging = false; });
+    bar.addEventListener('touchstart', function (e) { dragging = true; seekAt(e.touches[0].clientX); e.stopPropagation(); }, { passive: true });
+    bar.addEventListener('touchmove', function (e) { if (dragging) seekAt(e.touches[0].clientX); }, { passive: true });
+    bar.addEventListener('touchend', function () { dragging = false; });
   }
 
   function openLightbox(item) {
@@ -661,7 +682,7 @@
     } else {
       el = document.createElement('img');
       el.src = item.full || item.disp;            // high-res, clean (no film effect)
-      el.alt = item.category || 'Artwork';
+      el.alt = 'Artwork';
     }
     lightboxStage.appendChild(el);
     root.classList.add('is-lightbox');
@@ -675,19 +696,34 @@
   lightboxClose.addEventListener('click', function (e) { e.stopPropagation(); closeLightbox(); });
   lightboxEl.addEventListener('click', function (e) { if (e.target === lightboxEl) closeLightbox(); });
 
-  clipsToggle.addEventListener('click', function (e) {
-    e.stopPropagation();
-    showClips = !showClips;
-    clipsToggle.classList.toggle('is-on', showClips);
-    clipsToggle.textContent = showClips ? 'Hide individual clips' : 'See individual clips';
-    buildGrid();
-  });
-
-  // re-shuffle the gallery (fresh montage) — keeps the deterministic look but a new order
+  // ---- 4 pre-made montages, rotated per visit ----
+  // Four FIXED seeds -> four distinct, deterministic gallery orders. Each visit plays the
+  // next of the four (remembered in localStorage); the wordmark play-button also advances.
+  var MONTAGE_SEEDS = [0x1984d, 0x0c0ffee, 0x5eed42, 0xbada55];
+  var baseGallery = null, montageIndex = 0;
+  function montageOrder(seed) {
+    var arr = baseGallery.slice(), r = rng(seed >>> 0);
+    for (var i = arr.length - 1; i > 0; i--) { var j = Math.floor(r() * (i + 1)); var t = arr[i]; arr[i] = arr[j]; arr[j] = t; }
+    return arr;
+  }
+  function applyMontage(which) {
+    montageIndex = ((which % MONTAGE_SEEDS.length) + MONTAGE_SEEDS.length) % MONTAGE_SEEDS.length;
+    gallery = montageOrder(MONTAGE_SEEDS[montageIndex]);
+    idx = 0; vis.cur = null; vis.next = null; backMedia = null; spliceAt = -1;
+  }
+  function initMontageRotation() {
+    baseGallery = gallery.slice();
+    var last = -1;
+    try { last = parseInt(localStorage.getItem('montage-idx-v1'), 10); } catch (e) {}
+    if (isNaN(last)) last = -1;
+    var next = (last + 1) % MONTAGE_SEEDS.length;
+    try { localStorage.setItem('montage-idx-v1', String(next)); } catch (e) {}
+    applyMontage(next);
+  }
+  // advance to the next of the four montages (wordmark play-button)
   function freshMontage() {
-    var r = rng((Math.floor((Date.now() % 1e9) + Math.random() * 1e9)) >>> 0);
-    for (var i = gallery.length - 1; i > 0; i--) { var j = Math.floor(r() * (i + 1)); var t = gallery[i]; gallery[i] = gallery[j]; gallery[j] = t; }
-    idx = 0; vis.cur = null; vis.next = null; spliceAt = -1;
+    applyMontage(montageIndex + 1);
+    try { localStorage.setItem('montage-idx-v1', String(montageIndex)); } catch (e) {}
   }
 
   function enterGrid() {
@@ -705,15 +741,20 @@
     freshMontage();                              // come back to a NEW montage
     if (audioOn) fadeAudio(VOL, 1.2);
   }
+  // wordmark: in the montage it PLAYS ANOTHER montage (next of the 4); in the grid it
+  // returns to the montage. (Its hover turns into a glitchy play button — see CSS.)
   titleEl.addEventListener('click', function (e) {
     e.stopPropagation();
-    if (root.classList.contains('is-grid')) exitGrid(); else enterGrid();
+    if (root.classList.contains('is-grid')) { exitGrid(); return; }
+    if (landing.active) return;                  // ignore during the opening landing
+    freshMontage();                              // play another montage
+    spliceAt = clock;                            // splice flash on the change
   });
-  // top-right X — closes the montage to the grid (same as the wordmark toggle)
+  // top-right X — opens the grid (and closes it again if already open)
   var closeEl = root.querySelector('.intro__close');
   if (closeEl) closeEl.addEventListener('click', function (e) {
     e.stopPropagation();
-    if (!root.classList.contains('is-grid')) enterGrid();
+    if (root.classList.contains('is-grid')) exitGrid(); else enterGrid();
   });
   window.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') { if (root.classList.contains('is-lightbox')) closeLightbox(); else if (gridMode) exitGrid(); }

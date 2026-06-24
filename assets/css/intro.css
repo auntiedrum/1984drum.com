@@ -119,9 +119,31 @@ body.has-intro .site-container { display: none; }
   background: none; border: 0; padding: 4px 6px; margin: -4px -6px; cursor: pointer;
   transition: opacity .2s ease, transform .1s ease;
 }
-.intro__title:hover { opacity: .82; }
 .intro__title:active { transform: scale(.98); }
-.intro__title small { display: block; font-size: 11px; opacity: .65; letter-spacing: 2px; text-transform: uppercase; margin-top: 4px; }
+.intro__title small { display: block; font-size: 11px; opacity: .65; letter-spacing: 2px; text-transform: uppercase; margin-top: 4px; transition: opacity .2s ease; }
+
+/* on hover the wordmark turns into a glitchy PLAY button (play another montage) */
+.intro__title .intro__play {
+  position: absolute; inset: 0; z-index: 2;
+  display: flex; align-items: center; justify-content: flex-start; gap: 10px;
+  opacity: 0; pointer-events: none; color: #f3ece2; padding: 4px 6px;
+}
+.intro__title .intro__play svg { width: 26px; height: 26px; fill: currentColor; flex: 0 0 auto; }
+.intro__title .intro__play span { font-size: 13px; letter-spacing: 2px; text-transform: uppercase; opacity: .85; }
+.intro__title:hover .intro__play { opacity: 1; animation: intro-glitch .5s steps(2) infinite; }
+.intro__title:hover .intro__brand { opacity: 0; }
+.intro__brand { transition: opacity .15s ease; }
+@keyframes intro-glitch {
+  0%   { transform: translate(0,0);   filter: none; }
+  20%  { transform: translate(-1.5px,1px); filter: drop-shadow(2px 0 0 rgba(255,0,80,.6)) drop-shadow(-2px 0 0 rgba(0,200,255,.6)); }
+  40%  { transform: translate(1.5px,-1px); filter: none; }
+  60%  { transform: translate(-1px,0);  filter: drop-shadow(-2px 0 0 rgba(255,0,80,.6)) drop-shadow(2px 0 0 rgba(0,200,255,.6)); }
+  80%  { transform: translate(1px,1px); filter: none; }
+  100% { transform: translate(0,0);   filter: none; }
+}
+/* in grid view the wordmark is just the 'back' control — no glitch play affordance */
+.intro.is-grid .intro__title:hover .intro__play { opacity: 0; animation: none; }
+.intro.is-grid .intro__title:hover .intro__brand { opacity: 1; }
 
 /* ---- masonry grid overlay (toggled by the wordmark) ---- */
 .intro__grid {
@@ -129,40 +151,32 @@ body.has-intro .site-container { display: none; }
   background: #06100c;
   overflow-y: auto; -webkit-overflow-scrolling: touch;
   opacity: 0; pointer-events: none; transition: opacity .4s ease;
-  padding: 84px 18px 40px;
+  padding: 0;                          /* edge to edge: top / left / right */
 }
 .intro.is-grid .intro__grid { opacity: 1; pointer-events: auto; }
 .intro.is-grid .intro__canvas,
 .intro.is-grid .intro__bar,
 .intro.is-grid .intro__caption { opacity: 0; pointer-events: none; }
-.intro__grid-tools { display: flex; justify-content: center; margin: 0 0 18px; }
-.intro__clips-toggle {
-  font-family: 'Roboto Slab', serif; font-size: 13px; letter-spacing: .5px;
-  color: #f3ece2; background: rgba(255,255,255,.08);
-  border: 1px solid rgba(255,255,255,.3); border-radius: 999px;
-  padding: 9px 18px; cursor: pointer; transition: background .2s ease, border-color .2s ease;
-}
-.intro__clips-toggle:hover { background: rgba(255,255,255,.16); border-color: #fff; }
-.intro__clips-toggle.is-on { border-color: #34e2e4; color: #cfeff0; }
 
-/* CSS columns masonry */
+/* CSS columns masonry — flush to the edges, 2px gaps */
 .intro__grid-masonry {
-  column-count: 4; column-gap: 12px; max-width: 1500px; margin: 0 auto;
+  column-count: 4; column-gap: 2px; width: 100%; margin: 0;
 }
 @media (max-width: 1100px) { .intro__grid-masonry { column-count: 3; } }
 @media (max-width: 720px)  { .intro__grid-masonry { column-count: 2; } }
 .intro__cell {
-  display: block; width: 100%; margin: 0 0 12px; break-inside: avoid;
+  display: block; width: 100%; margin: 0 0 2px; break-inside: avoid;
   border: 0; padding: 0; background: #0c1712; cursor: zoom-in;
-  border-radius: 3px; overflow: hidden; position: relative; line-height: 0;
+  overflow: hidden; position: relative; line-height: 0;
 }
+.intro__cell.is-video { cursor: default; }
 .intro__cell img, .intro__cell video {
   display: block; width: 100%; height: auto;
   /* film grade by default; goes clean on hover */
   filter: sepia(0.32) saturate(0.78) contrast(0.94) brightness(1.02);
-  transition: filter .25s ease, transform .35s ease;
+  transition: filter .25s ease;
 }
-.intro__cell:hover img, .intro__cell:hover video { filter: none; transform: scale(1.02); }
+.intro__cell:hover img, .intro__cell:hover video { filter: none; }
 /* a soft grain veil over each thumb, removed on hover */
 .intro__cell::after {
   content: ''; position: absolute; inset: 0; pointer-events: none;
@@ -170,13 +184,21 @@ body.has-intro .site-container { display: none; }
   opacity: .22; mix-blend-mode: overlay; transition: opacity .25s ease;
 }
 .intro__cell:hover::after { opacity: 0; }
-.intro__cell-tag {
-  position: absolute; left: 8px; bottom: 8px; z-index: 2;
-  font: 600 10px 'Roboto Slab', serif; letter-spacing: 1px; text-transform: uppercase;
-  color: #f3ece2; background: rgba(0,0,0,.4); padding: 3px 7px; border-radius: 3px;
-  opacity: 0; transition: opacity .25s ease;
+
+/* clip progress bar — appears on hover, draggable to seek the clip */
+.intro__cell-bar {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 16px; z-index: 2;
+  display: flex; align-items: flex-end; cursor: pointer;
+  opacity: 0; transition: opacity .2s ease; touch-action: none;
 }
-.intro__cell:hover .intro__cell-tag { opacity: 1; }
+.intro__cell.is-video:hover .intro__cell-bar { opacity: 1; }
+.intro__cell-bar::before {
+  content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 4px;
+  background: rgba(255,255,255,.28);
+}
+.intro__cell-bar-fill {
+  position: relative; height: 4px; width: 0; background: #f3ece2; z-index: 1; align-self: flex-end;
+}
 
 /* ---- simple enlarge lightbox (clean, high-res) ---- */
 .intro__lightbox {
