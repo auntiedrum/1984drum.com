@@ -569,6 +569,8 @@
   function makeCell(item, level) {
     var cell = document.createElement('div');
     cell.className = 'intro__cell' + (item.video ? ' is-video' : '');
+    // never show a broken source — if the media fails to load, drop the whole cell.
+    function dropCell() { if (cell.parentNode) cell.parentNode.removeChild(cell); }
     var media;
     if (item.video) {
       media = document.createElement('video');
@@ -576,6 +578,7 @@
       media.setAttribute('muted', ''); media.setAttribute('playsinline', '');
       if (item.webm) { var sw = document.createElement('source'); sw.src = item.webm; sw.type = 'video/webm'; media.appendChild(sw); }
       var sm = document.createElement('source'); sm.src = item.disp; sm.type = 'video/mp4'; media.appendChild(sm);
+      media.addEventListener('error', dropCell);
       cell.appendChild(media);
       var bar = document.createElement('div'); bar.className = 'intro__cell-bar';
       var fill = document.createElement('div'); fill.className = 'intro__cell-bar-fill';
@@ -590,6 +593,7 @@
     } else {
       media = document.createElement('img');
       media.loading = 'lazy'; media.decoding = 'async';
+      media.addEventListener('error', dropCell);   // broken source -> remove the cell
       if (item.w && item.h) { media.width = item.w; media.height = item.h; }
       cell.appendChild(media);
       cell.addEventListener('click', function () { openLightbox(item); });
