@@ -14,13 +14,29 @@
         <link rel="apple-touch-icon" href="/assets/img/014472dc-ac3d-4c42-96b3-16a013966c35_carw_1x1x180.png" />
     <link rel="canonical" href="https://1984drum.com/fragments-of-infinity-2022" />
       <title>1984drum Artist Portfolio</title>
-  <link rel="stylesheet" href="/assets/css/fonts.css?v=21" />
-  <link rel="stylesheet" href="/assets/css/main.css?v=21" />
-  <link rel="stylesheet" href="/assets/css/theme.css?v=21" />
-  <link rel="stylesheet" href="/assets/css/app.css?v=21" />
-  <link rel="stylesheet" href="/assets/css/genesis.css?v=21" />
+  <link rel="stylesheet" href="/assets/css/fonts.css?v=22" />
+  <link rel="stylesheet" href="/assets/css/main.css?v=22" />
+  <link rel="stylesheet" href="/assets/css/theme.css?v=22" />
+  <link rel="stylesheet" href="/assets/css/app.css?v=22" />
+  <link rel="stylesheet" href="/assets/css/genesis.css?v=22" />
+  <link rel="stylesheet" href="/assets/css/intro.css?v=22" />
 </head>
   <body class="transition-enabled">
+  <div id="intro" class="intro" data-base="/assets/tape/" aria-label="Intro — abstract drawing animation">
+    <canvas class="intro__canvas" width="1280" height="720"></canvas>
+    <div class="intro__title">1984drum<small>Peter McClory</small></div>
+    <div class="intro__bar">
+      <button class="intro__sound" type="button" aria-pressed="false" aria-label="Toggle sound">
+        <svg class="intro__sound-off" viewBox="0 0 24 24"><path d="M4 9v6h4l5 5V4L8 9H4z"/><path d="M16 8.5a4 4 0 0 1 0 7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity=".5"/></svg>
+        <svg class="intro__sound-on" viewBox="0 0 24 24"><path d="M4 9v6h4l5 5V4L8 9H4z"/><path d="M16 8a5 5 0 0 1 0 8M18.5 6a8 8 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        <span class="intro__sound-label">Tap for sound</span>
+      </button>
+      <button class="intro__enter" type="button" aria-label="Enter site">Enter
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </button>
+    </div>
+    <div class="intro__hint">scroll or tap to enter</div>
+  </div>
   <div class="js-responsive-nav">
     <div class="responsive-nav has-social">
       <div class="close-responsive-click-area js-close-responsive-nav">
@@ -355,6 +371,7 @@ padding-bottom: px;
     </div>
   </div>
 </body>
-  <script src="/assets/js/app.js?v=21"></script>
-  <script src="/assets/js/genesis.js?v=21"></script>
+  <script src="/assets/js/app.js?v=22"></script>
+  <script src="/assets/js/genesis.js?v=22"></script>
+  <script src="/assets/js/intro.js?v=22"></script>
 </html>
