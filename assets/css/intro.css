@@ -243,16 +243,36 @@ body.has-intro .site-container { display: none; }
 .intro__toggle-montage { display: none; }
 .intro.is-grid .intro__toggle-gallery { display: none; }
 .intro.is-grid .intro__toggle-montage { display: inline-flex; }
-/* the toggle is a mobile affordance; show it on touch-width screens */
+/* ---- mobile: a single top bar all the way across ----
+   On touch screens there's no hover, so the desktop hint is replaced by a persistent
+   control. Rather than two separate corner boxes, the wordmark box stretches edge-to-edge
+   to become ONE bar: "1984drum" on the left, the gallery/montage toggle on the right
+   (the toggle itself goes transparent — the bar provides the shared blurred background).
+   The "Artworks" sub-label is dropped so "1984drum" sits on one line, level with the
+   toggle. The toggle label keeps the glitch flicker the desktop hover hint had. */
 @media (max-width: 720px) {
-  .intro__toggle { display: inline-flex; }
-  /* on mobile the hover hint is unreachable AND the persistent top-right toggle replaces
-     it — so drop the hint spans entirely. This also stops them sizing the wordmark box, so
-     it hugs just "1984drum" instead of the long label and can't collide with the toggle. */
-  .intro__title .intro__hint { display: none; }
+  .intro__title {
+    left: 0; right: 0;                 /* full-width bar */
+    flex-direction: row; align-items: center;
+    display: flex;                     /* row of brand (left) + spacer; toggle overlays right */
+    min-width: 0 !important;           /* never the hover min-width on mobile */
+  }
+  .intro__title small { display: none; }            /* drop "Artworks" -> single line */
+  .intro__title .intro__hint { display: none; }     /* hover hints unused on mobile */
+
+  .intro__toggle {
+    display: inline-flex; align-items: center;
+    top: 0; bottom: auto;              /* anchored to the top, NOT stretched full-screen */
+    height: var(--introbar-h, 64px);   /* matches the title bar's height (JS sets the var) */
+    background: none;                  /* the title bar provides the shared background */
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+    padding-top: 0; padding-bottom: 0; /* height + align-items handle vertical centring */
+    z-index: 7;                        /* above the title bar */
+  }
+  /* keep the glitch flicker on whichever toggle label is active (no hover on mobile) */
+  .intro__toggle-gallery, .intro__toggle-montage { animation: intro-glitch 2.4s steps(2) infinite; }
 }
-/* on the narrowest phones, tighten the toggle so the longer "View Artwork Montage" label
-   (grid mode) still clears the wordmark box without crowding it */
+/* on the narrowest phones, tighten so "View Artwork Montage" still fits beside "1984drum" */
 @media (max-width: 480px) {
   .intro__toggle { padding: 16px; gap: 6px; }
   .intro__toggle svg { width: 17px; height: 17px; }

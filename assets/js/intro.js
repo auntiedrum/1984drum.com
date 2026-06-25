@@ -927,4 +927,15 @@
   window.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') { if (root.classList.contains('is-lightbox')) closeLightbox(); else if (gridMode) exitGrid(); }
   });
+
+  // On mobile the wordmark box stretches into a single full-width top bar; the toggle
+  // overlays its right end. Publish the bar's measured height as --introbar-h so the
+  // toggle can match it exactly and centre its label level with "1984drum".
+  function syncBarHeight() {
+    var h = titleEl.getBoundingClientRect().height;
+    if (h > 0) root.style.setProperty('--introbar-h', Math.round(h) + 'px');
+  }
+  syncBarHeight();
+  window.addEventListener('resize', syncBarHeight);
+  window.addEventListener('load', syncBarHeight);
 })();
