@@ -47,19 +47,19 @@ body.has-intro .site-container { display: none; }
   pointer-events: none;   /* only the buttons catch taps; rest of the bar is pass-through */
 }
 /* frosted-glass control panel sitting BEHIND the audio controls so they read as a
-   single, legible control bar over the moving art. Dark (~60% black) + heavy blur. It
-   hugs the controls (inset from the screen edges) with rounded ends, and a soft top
-   gradient still lifts the buttons off the brightest frames. */
+   single, legible control bar over the moving art. Dark (~60% black) + heavy blur. It is
+   FLUSH to the left, right and bottom edges of the screen (a true edge-to-edge footer, no
+   floating rounded rectangle). Only shown in the GALLERY — in the montage there's just the
+   bare mute button (see the montage rule below). */
 .intro__bar-glass {
   position: absolute; z-index: -1; pointer-events: none;
-  left: clamp(10px, 3vw, 28px); right: clamp(10px, 3vw, 28px);
-  top: 8px; bottom: max(8px, env(safe-area-inset-bottom, 0px));
+  left: 0; right: 0; bottom: 0; top: 0;
   background: rgba(0,0,0,.6);
   -webkit-backdrop-filter: blur(20px) saturate(1.1); backdrop-filter: blur(20px) saturate(1.1);
-  border-radius: 18px;
-  border: 1px solid rgba(255,255,255,.06);
-  box-shadow: 0 10px 40px rgba(0,0,0,.45);
+  box-shadow: 0 -6px 30px rgba(0,0,0,.35);
 }
+/* montage mode: no footer panel — just the floating mute button on the art */
+.intro:not(.is-grid) .intro__bar-glass { display: none; }
 .intro__bar-left, .intro__bar-right { display: flex; align-items: center; gap: 10px; }
 .intro__play-btn, .intro__mute-btn, .intro__prev-btn, .intro__next-btn {
   pointer-events: auto; flex: 0 0 auto;
@@ -95,24 +95,29 @@ body.has-intro .site-container { display: none; }
    shown while muted (it's the unmute affordance) and not during the opening landing. */
 .intro__mute-btn { position: relative; overflow: visible; }
 .intro__mute-prompt {
-  position: absolute; right: 50%; top: 50%; transform: translateY(-50%);
-  display: flex; align-items: center; height: 40px;
+  /* a capsule EXACTLY as tall as the 48px mute circle, growing out to the LEFT so it reads
+     as the circle stretching into a pill. Its right end tucks behind the button's centre;
+     the big right padding keeps the text clear of the centred mute icon (no clipping). */
+  position: absolute; right: 24px; top: 50%; transform: translateY(-50%);
+  display: flex; align-items: center; height: 48px;
   max-width: 0; padding: 0; overflow: hidden;
   white-space: nowrap; color: #f3ece2;
   font-family: 'Roboto Slab', serif; font-size: 12px; letter-spacing: 1px;
   background: rgba(0,0,0,.6);
   -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
-  border-radius: 20px 0 0 20px;
+  border-radius: 24px 0 0 24px;
   box-shadow: 0 6px 24px rgba(0,0,0,.4);
   pointer-events: none;
-  /* slow, careful reveal */
-  transition: max-width .55s cubic-bezier(.22,.61,.36,1), padding .55s cubic-bezier(.22,.61,.36,1), opacity .4s ease;
+  /* slow, careful reveal that eases OUT (decelerates) before it's fully extended */
+  transition: max-width .8s cubic-bezier(.16,1,.3,1), padding .8s cubic-bezier(.16,1,.3,1), opacity .45s ease;
   opacity: 0;
 }
-/* only when muted + hovered/focused, and only in the montage where the unmute CTA lives */
+/* only when muted + hovered/focused, and only in the montage where the unmute CTA lives.
+   left padding sets the text inset from the rounded end; right padding (36px) leaves room
+   for the button's left half so the text never runs under the speaker icon. */
 .intro__mute-btn.is-muted:hover .intro__mute-prompt,
 .intro__mute-btn.is-muted:focus-visible .intro__mute-prompt {
-  max-width: 320px; padding: 0 30px 0 18px; opacity: 1;
+  max-width: 360px; padding: 0 36px 0 22px; opacity: 1;
 }
 .intro.is-landing .intro__mute-prompt { display: none; }
 
@@ -169,35 +174,33 @@ body.has-intro .site-container { display: none; }
   font-size: clamp(15px, 2.4vw, 22px); font-weight: 300; letter-spacing: 1px;
   text-shadow: 0 2px 18px rgba(0,0,0,.6);
   cursor: pointer; border: 0;
-  /* flush to the corner: extra top/left padding accounts for the corner, so the text
-     still reads ~26px/28px in from the edge as before */
-  padding: 24px 22px 18px 24px;
-  /* brand + the two hint spans are stacked in ONE grid cell, so the box always sizes to
-     its widest child (the hint label) — the hover label then never wraps. */
-  display: grid; align-items: center; justify-items: start;
-  background: rgba(0,0,0,.04);
+  /* flush to the top-left corner, with EQUAL padding all around the word. The box hugs the
+     brand at rest; on hover it grows just enough for the hint label (min-width below). */
+  padding: 22px;
+  background: rgba(0,0,0,.45);
   -webkit-backdrop-filter: blur(22px) saturate(1.05); backdrop-filter: blur(22px) saturate(1.05);
-  border-right: 1px solid rgba(255,255,255,.07);
-  border-bottom: 1px solid rgba(255,255,255,.07);
-  border-bottom-right-radius: 16px;
-  transition: opacity .2s ease, transform .1s ease, background .2s ease;
+  transition: opacity .2s ease, transform .1s ease, background .2s ease, min-width .25s ease;
 }
-.intro__title > * { grid-area: 1 / 1; }   /* overlap brand + both hints in the same cell */
-.intro__title:hover { background: rgba(0,0,0,.10); }
+.intro__title:hover { background: rgba(0,0,0,.55); }
 .intro__title:active { transform: scale(.98); }
 .intro__title small { display: block; font-size: 11px; opacity: .65; letter-spacing: 2px; text-transform: uppercase; margin-top: 4px; transition: opacity .2s ease; }
 
 /* on hover the wordmark glitches into an action hint:
    - in the MONTAGE: a square + VIEW FULL GALLERY (opens the grid)
-   - in the GALLERY: a play triangle + VIEW ARTWORK MONTAGE (plays a montage) */
+   - in the GALLERY: a play triangle + VIEW ARTWORK MONTAGE (plays a montage)
+   The hint overlays the brand (absolute, so it never widens the box at rest); on hover the
+   box grows via min-width to fit it. */
 .intro__title .intro__hint {
-  z-index: 2; align-self: center;
+  position: absolute; left: 22px; top: 50%; transform: translateY(-50%); z-index: 2;
   display: flex; align-items: center; justify-content: flex-start; gap: 10px;
   opacity: 0; pointer-events: none; color: #f3ece2;
 }
 .intro__title .intro__hint svg { width: 22px; height: 22px; fill: currentColor; flex: 0 0 auto; }
 .intro__title .intro__hint span { font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; opacity: .85; white-space: nowrap; }
 .intro__brand { transition: opacity .15s ease; }
+/* grow the box to fit whichever hint is active on hover */
+.intro:not(.is-grid) .intro__title:hover { min-width: 200px; }   /* "View full gallery" */
+.intro.is-grid .intro__title:hover { min-width: 245px; }         /* "View Artwork Montage" */
 /* which hint shows depends on the mode */
 .intro:not(.is-grid) .intro__title:hover .intro__hint--gallery,
 .intro.is-grid .intro__title:hover .intro__hint--montage {
@@ -224,12 +227,9 @@ body.has-intro .site-container { display: none; }
   display: none;                                   /* desktop: hover hint handles it */
   align-items: center; gap: 8px;
   color: #f3ece2; font-family: 'Roboto Slab', serif; cursor: pointer; border: 0;
-  padding: 24px 24px 18px 22px;
-  background: rgba(0,0,0,.04);
+  padding: 22px;                                   /* equal padding all around, flush to corner */
+  background: rgba(0,0,0,.45);
   -webkit-backdrop-filter: blur(22px) saturate(1.05); backdrop-filter: blur(22px) saturate(1.05);
-  border-left: 1px solid rgba(255,255,255,.07);
-  border-bottom: 1px solid rgba(255,255,255,.07);
-  border-bottom-left-radius: 16px;
   transition: background .2s ease, transform .1s ease, opacity .3s ease;
 }
 .intro__toggle:active { transform: scale(.97); }
@@ -254,7 +254,7 @@ body.has-intro .site-container { display: none; }
 /* on the narrowest phones, tighten the toggle so the longer "View Artwork Montage" label
    (grid mode) still clears the wordmark box without crowding it */
 @media (max-width: 480px) {
-  .intro__toggle { padding: 22px 16px 16px 16px; gap: 6px; }
+  .intro__toggle { padding: 16px; gap: 6px; }
   .intro__toggle svg { width: 17px; height: 17px; }
   .intro__toggle-gallery span, .intro__toggle-montage span { font-size: 10.5px; letter-spacing: 1px; }
 }
