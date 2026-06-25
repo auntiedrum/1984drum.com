@@ -34,6 +34,9 @@
   var btnPrev = root.querySelector('.intro__prev-btn');
   var btnNext = root.querySelector('.intro__next-btn');
   var trackEl = root.querySelector('.intro__track');
+  // the title sits in a child span so the "Now Playing" label stays put; fall back to the
+  // bar itself for older markup without the label/title split.
+  var trackTitleEl = root.querySelector('.intro__track-title') || trackEl;
   var seekEl = root.querySelector('.intro__seek');     // optional (may be absent now)
   var seekFill = root.querySelector('.intro__seek-fill');
   var seekKnob = root.querySelector('.intro__seek-knob');
@@ -564,8 +567,11 @@
         if (!actx || actx.state !== 'running') return;
         var p = (actx.currentTime - aT0) % dur; if (p < 0) p += dur;
         var ci = 0; for (var i = 0; i < seq.length; i++) { if (p >= seq[i].startAt) ci = i; }
-        if (ci !== lastClipIdx) { lastClipIdx = ci; if (engaged) pickWord(); }
-      }, 700);
+        // keep the "Now Playing" title locked to the clip that's actually sounding — even
+        // before the user unmutes, so the gallery bar is always truthful. Polled tightly so
+        // it snaps to the real clip (and self-corrects any skip-anchor drift) within a beat.
+        if (ci !== lastClipIdx) { lastClipIdx = ci; pickWord(seq[ci] && seq[ci].clip); }
+      }, 300);
     });
   }
   function fadeAudio(target, secs) {
@@ -581,17 +587,52 @@
   // play/pause control. Pause then suspends; play resumes. Next/Prev jump the live audio to
   // the next/previous clip in the sequence and pick a fresh "track name" word.
   var playing = true, muted = true, engaged = false;   // engaged = user has unmuted at least once
+  // Curated fall-back names for the scraped IG/X clips, which carry no real title
+  // ("Untitled clip") — so the bar never reads "Untitled". Pete's own tracks keep their
+  // real names (see clipTitle()).
   var WORDS = ['Greenman', 'Mycelium', 'Spores', 'Empathy', 'Heartwood', 'Communion', 'Petrichor',
     'Symbiosis', 'Fungi', 'Tendrils', 'Reverie', 'Bloom', 'Lichen', 'Murmuration', 'Wildwood',
     'Kinship', 'Verdant', 'Moss', 'Resonance', 'Fernlight', 'Solace', 'Canopy', 'Loam', 'Chorus',
     'Tides', 'Pollen', 'Drift', 'Hollow', 'Gathering', 'Sap', 'Dawnsong', 'Undergrowth'];
-  var lastWord = '';
-  function pickWord() {
-    var w = lastWord;
-    while (w === lastWord) w = WORDS[Math.floor(visRand() * WORDS.length)];
-    lastWord = w;
-    if (trackEl) trackEl.textContent = w;
-    return w;
+
+  // which clip is sounding right now -> its sequence entry's clip object (or null)
+  function currentClip() {
+    if (!actx || !seq.length) return null;
+    var dur = seqDuration();
+    var p = (actx.currentTime - aT0) % dur; if (p < 0) p += dur;
+    var ci = 0; for (var i = 0; i < seq.length; i++) { if (p >= seq[i].startAt) ci = i; }
+    return seq[ci] ? seq[ci].clip : null;
+  }
+  // stable per-clip fall-back word so an "Untitled clip" shows the SAME name each time it
+  // comes round (not a fresh random one every tick) — keyed off its id.
+  function wordForId(id) {
+    var h = 0; for (var i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+    return WORDS[h % WORDS.length];
+  }
+  // the display title for a clip: a real title becomes the song name with its section
+  // suffix dropped ("Rising Rain (a)" -> "Rising Rain"); untitled scraped clips get their
+  // stable curated word.
+  function clipTitle(clip) {
+    if (!clip) return '';
+    var t = (clip.title || '').trim();
+    if (t && t.toLowerCase() !== 'untitled clip') {
+      return t.replace(/\s*\([a-z]\)\s*$/i, '').trim() || t;
+    }
+    return wordForId(clip.id);
+  }
+  var lastTitle = '';
+  // refresh the "Now Playing" title. Pass an explicit clip when the caller already knows
+  // which one is about to sound (e.g. skipClip, where the audio clock hasn't advanced to
+  // the freshly-anchored position yet — reading currentClip() there races to the previous
+  // clip). Otherwise read whatever is sounding now. Falls back to a fresh random word only
+  // before the audio graph exists, so the bar is never blank on load.
+  function pickWord(clip) {
+    var name = clipTitle(clip || currentClip());
+    if (!name) { name = WORDS[Math.floor(visRand() * WORDS.length)]; }
+    lastTitle = name;
+    if (trackTitleEl) trackTitleEl.textContent = name;
+    if (trackEl) trackEl.setAttribute('title', name);
+    return name;
   }
 
   function refreshPlayerUI() {
@@ -634,7 +675,6 @@
     var ci = 0;
     for (var i = 0; i < seq.length; i++) { if (posInLoop >= seq[i].startAt) ci = i; }
     ci = ((ci + dir) % seq.length + seq.length) % seq.length;
-    lastClipIdx = ci;   // claim this clip so clipWatch won't double-fire pickWord()
     var targetOffset = seq[ci].startAt + 0.02;
     // stop everything currently sounding and re-anchor the schedule so `targetOffset` is "now"
     stopAllSources();
@@ -645,7 +685,12 @@
     schedHorizon = aT0 + 2 * dur;
     if (actx.state === 'suspended') actx.resume();
     playing = true;
-    pickWord();
+    // Instant feedback: name it from the TARGET clip (the audio clock hasn't moved yet).
+    // Then drop lastClipIdx so the tight clipWatch poll re-confirms against what's REALLY
+    // sounding a beat later — that self-corrects any drift between this index guess and the
+    // re-anchored playhead, so the bar never sticks on a stale title after a skip.
+    pickWord(seq[ci].clip);
+    lastClipIdx = -1;
     refreshPlayerUI();
   }
   if (btnPlay) btnPlay.addEventListener('click', function (e) { e.stopPropagation(); setPlaying(!playing); });
@@ -668,6 +713,13 @@
   function makeCell(item, level) {
     var cell = document.createElement('div');
     cell.className = 'intro__cell' + (item.video ? ' is-video' : '');
+    // RESERVE the tile's height from its known aspect ratio BEFORE the media loads.
+    // The masonry is CSS-columns: without a reserved height a not-yet-loaded <img>
+    // collapses to the UA default (~150px), so when the real (and, on repeats, the
+    // async-pixelated) source finally decodes the cell jumps to its true height and
+    // every tile below it reflows — that's what tore the gaps into the grid on scroll.
+    // Pinning aspect-ratio up front keeps the column packing stable across the load.
+    if (item.w && item.h) cell.style.aspectRatio = item.w + ' / ' + item.h;
     // never show a broken source — if the media fails to load, drop the whole cell.
     function dropCell() { if (cell.parentNode) cell.parentNode.removeChild(cell); }
     var media;
@@ -706,9 +758,21 @@
     }
     return cell;
   }
-  // each repeat appends the whole gallery again, pixelated by its loop level
+  // each repeat appends the whole gallery again, pixelated by its loop level.
+  // Re-appending in the SAME order each loop made identical thumbs land in the same
+  // column slot loop-after-loop — and because CSS-columns flows top-to-bottom then
+  // wraps, the tail of one pass and the head of the next often share a screen, so two
+  // copies of a piece sat side by side. Each repeat is shuffled with a per-level seed
+  // (deterministic, so reloads are stable) to scatter the copies apart; level 0 stays
+  // in curated montage order.
+  function shuffledForLevel(level) {
+    if (level <= 0) return gallery.slice();
+    var arr = gallery.slice(), r = rng((0x51a1e ^ (level * 0x9e3779b1)) >>> 0);
+    for (var i = arr.length - 1; i > 0; i--) { var j = Math.floor(r() * (i + 1)); var t = arr[i]; arr[i] = arr[j]; arr[j] = t; }
+    return arr;
+  }
   function appendGallerySet(level) {
-    gallery.forEach(function (item) { masonryEl.appendChild(makeCell(item, level)); });
+    shuffledForLevel(level).forEach(function (item) { masonryEl.appendChild(makeCell(item, level)); });
   }
   function buildGrid() {
     masonryEl.innerHTML = '';

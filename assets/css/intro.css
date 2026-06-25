@@ -75,12 +75,25 @@ body.has-intro .site-container { display: none; }
 .intro__play-btn { display: none; }
 .intro.audio-engaged .intro__play-btn { display: flex; }
 
-/* the "track name" word + prev/next arrows appear only in the gallery */
+/* the "Now Playing" block + prev/next arrows appear only in the gallery.
+   It's a flex child that takes the middle space and TRUNCATES (min-width:0 + ellipsis)
+   rather than shoving the arrow groups apart / overlapping them on narrow screens — the
+   old single nowrap span with space-between is what made the bar look glitchy on mobile. */
 .intro__track {
   pointer-events: none; color: #f3ece2; opacity: 0;
+  flex: 1 1 auto; min-width: 0; margin: 0 12px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; line-height: 1.1;
+  transition: opacity .3s ease;
+}
+.intro__track-label {
+  font-family: 'Roboto Slab', serif; font-size: 9px; letter-spacing: 2.5px;
+  text-transform: uppercase; opacity: .6; text-shadow: 0 1px 6px rgba(0,0,0,.8);
+}
+.intro__track-title {
   font-family: 'Roboto Slab', serif; font-size: 14px; letter-spacing: 2px;
   text-transform: uppercase; text-shadow: 0 2px 12px rgba(0,0,0,.8);
-  transition: opacity .3s ease; white-space: nowrap;
+  max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .intro__prev-btn, .intro__next-btn { display: none; }
 .intro.is-grid .intro__prev-btn, .intro.is-grid .intro__next-btn { display: flex; }
@@ -167,11 +180,20 @@ body.has-intro .site-container { display: none; }
   overflow: hidden; position: relative; line-height: 0;
 }
 .intro__cell.is-video { cursor: default; }
+/* The cell reserves its height from the artwork's aspect-ratio (set inline in JS) so the
+   column layout is fixed BEFORE the image — or, on pixelated repeats, the async-built
+   data-URL — finishes loading. The media fills that reserved box exactly (object-fit)
+   so a loaded source never resizes the cell and shoves the column, which is what left
+   the gaps mid-scroll. Cells without known dims fall back to natural height. */
 .intro__cell img, .intro__cell video {
   display: block; width: 100%; height: auto;
   /* film grade by default; goes clean on hover */
   filter: sepia(0.32) saturate(0.78) contrast(0.94) brightness(1.02);
   transition: filter .25s ease;
+}
+.intro__cell[style*="aspect-ratio"] img,
+.intro__cell[style*="aspect-ratio"] video {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
 }
 .intro__cell:hover img, .intro__cell:hover video { filter: none; }
 /* progressively pixelated repeats on infinite scroll — stretch the blocky thumb, no smoothing */
@@ -226,9 +248,12 @@ body.has-intro .site-container { display: none; }
 .intro__lightbox-close:hover { background: rgba(255,255,255,.22); }
 
 @media (max-width: 540px) {
-  .intro__bar { padding: 14px 14px calc(14px + env(safe-area-inset-bottom, 0px)); }
-  .intro__play-btn, .intro__mute-btn, .intro__prev-btn, .intro__next-btn { width: 52px; height: 52px; }  /* bigger tap targets on mobile */
-  .intro__track { font-size: 12px; letter-spacing: 2px; }  /* keep the track name clear of the arrows on narrow screens */
+  .intro__bar { padding: 14px 12px calc(14px + env(safe-area-inset-bottom, 0px)); }
+  .intro__play-btn, .intro__mute-btn, .intro__prev-btn, .intro__next-btn { width: 48px; height: 48px; }  /* tap targets, but small enough to leave room for the title */
+  .intro__bar-left, .intro__bar-right { gap: 6px; }
+  .intro__track { margin: 0 8px; }   /* keep the title clear of the arrows on narrow screens */
+  .intro__track-label { font-size: 8px; letter-spacing: 2px; }
+  .intro__track-title { font-size: 12px; letter-spacing: 1.5px; }
   .intro__caption { font-size: 11px; }
   .intro__grid { padding: 72px 12px 32px; }
 }
