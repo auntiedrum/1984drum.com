@@ -44,8 +44,21 @@ body.has-intro .site-container { display: none; }
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 5;
   display: flex; align-items: center; justify-content: space-between;
   padding: 16px clamp(16px, 4vw, 40px) calc(16px + env(safe-area-inset-bottom, 0px));
-  background: linear-gradient(to top, rgba(0,0,0,.62), rgba(0,0,0,.12) 75%, transparent);
   pointer-events: none;   /* only the buttons catch taps; rest of the bar is pass-through */
+}
+/* frosted-glass control panel sitting BEHIND the audio controls so they read as a
+   single, legible control bar over the moving art. Dark (~60% black) + heavy blur. It
+   hugs the controls (inset from the screen edges) with rounded ends, and a soft top
+   gradient still lifts the buttons off the brightest frames. */
+.intro__bar-glass {
+  position: absolute; z-index: -1; pointer-events: none;
+  left: clamp(10px, 3vw, 28px); right: clamp(10px, 3vw, 28px);
+  top: 8px; bottom: max(8px, env(safe-area-inset-bottom, 0px));
+  background: rgba(0,0,0,.6);
+  -webkit-backdrop-filter: blur(20px) saturate(1.1); backdrop-filter: blur(20px) saturate(1.1);
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,.06);
+  box-shadow: 0 10px 40px rgba(0,0,0,.45);
 }
 .intro__bar-left, .intro__bar-right { display: flex; align-items: center; gap: 10px; }
 .intro__play-btn, .intro__mute-btn, .intro__prev-btn, .intro__next-btn {
@@ -74,6 +87,34 @@ body.has-intro .site-container { display: none; }
 /* play button is HIDDEN until the user first unmutes */
 .intro__play-btn { display: none; }
 .intro.audio-engaged .intro__play-btn { display: flex; }
+
+/* ---- unmute prompt lozenge ----
+   While the audio is muted, hovering the unmute button slowly extends a dark glass lozenge
+   to the LEFT of it revealing "Unmute to hear 1984drum audio work". It grows out from
+   behind the round button (right edge tucked under it) so the two read as one pill. Only
+   shown while muted (it's the unmute affordance) and not during the opening landing. */
+.intro__mute-btn { position: relative; overflow: visible; }
+.intro__mute-prompt {
+  position: absolute; right: 50%; top: 50%; transform: translateY(-50%);
+  display: flex; align-items: center; height: 40px;
+  max-width: 0; padding: 0; overflow: hidden;
+  white-space: nowrap; color: #f3ece2;
+  font-family: 'Roboto Slab', serif; font-size: 12px; letter-spacing: 1px;
+  background: rgba(0,0,0,.6);
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+  border-radius: 20px 0 0 20px;
+  box-shadow: 0 6px 24px rgba(0,0,0,.4);
+  pointer-events: none;
+  /* slow, careful reveal */
+  transition: max-width .55s cubic-bezier(.22,.61,.36,1), padding .55s cubic-bezier(.22,.61,.36,1), opacity .4s ease;
+  opacity: 0;
+}
+/* only when muted + hovered/focused, and only in the montage where the unmute CTA lives */
+.intro__mute-btn.is-muted:hover .intro__mute-prompt,
+.intro__mute-btn.is-muted:focus-visible .intro__mute-prompt {
+  max-width: 320px; padding: 0 30px 0 18px; opacity: 1;
+}
+.intro.is-landing .intro__mute-prompt { display: none; }
 
 /* the "Now Playing" block + prev/next arrows appear only in the gallery.
    It's a flex child that takes the middle space and TRUNCATES (min-width:0 + ellipsis)
@@ -117,28 +158,45 @@ body.has-intro .site-container { display: none; }
 .intro.is-landing .intro__caption,
 .intro.is-landing .intro__title { opacity: 0 !important; pointer-events: none; transition: opacity .6s ease; }
 
-/* wordmark / title, top-left — also the grid<->montage toggle button */
+/* wordmark / title, top-left — also the grid<->montage toggle button.
+   It sits in a heavy-blur "glass" box that is FLUSH to the top-left corner of the screen
+   (no gap), with equal padding wrapping the word so the wordmark lands where it always
+   has. The box has NO colour tint — it's purely a strong blur of whatever art/animation
+   is behind it, with a hairline edge and rounded inner corner. */
 .intro__title {
-  position: absolute; top: 26px; left: 28px; z-index: 6;
+  position: absolute; top: 0; left: 0; z-index: 6;
   color: #f3ece2; font-family: 'Roboto Slab', serif; text-align: left;
   font-size: clamp(15px, 2.4vw, 22px); font-weight: 300; letter-spacing: 1px;
   text-shadow: 0 2px 18px rgba(0,0,0,.6);
-  background: none; border: 0; padding: 4px 6px; margin: -4px -6px; cursor: pointer;
-  transition: opacity .2s ease, transform .1s ease;
+  cursor: pointer; border: 0;
+  /* flush to the corner: extra top/left padding accounts for the corner, so the text
+     still reads ~26px/28px in from the edge as before */
+  padding: 24px 22px 18px 24px;
+  /* brand + the two hint spans are stacked in ONE grid cell, so the box always sizes to
+     its widest child (the hint label) — the hover label then never wraps. */
+  display: grid; align-items: center; justify-items: start;
+  background: rgba(0,0,0,.04);
+  -webkit-backdrop-filter: blur(22px) saturate(1.05); backdrop-filter: blur(22px) saturate(1.05);
+  border-right: 1px solid rgba(255,255,255,.07);
+  border-bottom: 1px solid rgba(255,255,255,.07);
+  border-bottom-right-radius: 16px;
+  transition: opacity .2s ease, transform .1s ease, background .2s ease;
 }
+.intro__title > * { grid-area: 1 / 1; }   /* overlap brand + both hints in the same cell */
+.intro__title:hover { background: rgba(0,0,0,.10); }
 .intro__title:active { transform: scale(.98); }
 .intro__title small { display: block; font-size: 11px; opacity: .65; letter-spacing: 2px; text-transform: uppercase; margin-top: 4px; transition: opacity .2s ease; }
 
 /* on hover the wordmark glitches into an action hint:
-   - in the MONTAGE: a square + GALLERY (opens the grid)
-   - in the GALLERY: a play triangle + MONTAGE (plays a montage) */
+   - in the MONTAGE: a square + VIEW FULL GALLERY (opens the grid)
+   - in the GALLERY: a play triangle + VIEW ARTWORK MONTAGE (plays a montage) */
 .intro__title .intro__hint {
-  position: absolute; inset: 0; z-index: 2;
+  z-index: 2; align-self: center;
   display: flex; align-items: center; justify-content: flex-start; gap: 10px;
-  opacity: 0; pointer-events: none; color: #f3ece2; padding: 4px 6px;
+  opacity: 0; pointer-events: none; color: #f3ece2;
 }
-.intro__title .intro__hint svg { width: 24px; height: 24px; fill: currentColor; flex: 0 0 auto; }
-.intro__title .intro__hint span { font-size: 13px; letter-spacing: 2px; text-transform: uppercase; opacity: .85; }
+.intro__title .intro__hint svg { width: 22px; height: 22px; fill: currentColor; flex: 0 0 auto; }
+.intro__title .intro__hint span { font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; opacity: .85; white-space: nowrap; }
 .intro__brand { transition: opacity .15s ease; }
 /* which hint shows depends on the mode */
 .intro:not(.is-grid) .intro__title:hover .intro__hint--gallery,
@@ -154,6 +212,54 @@ body.has-intro .site-container { display: none; }
   80%  { transform: translate(1px,1px); filter: none; }
   100% { transform: translate(0,0);   filter: none; }
 }
+
+/* ---- persistent top-right Gallery/Montage toggle ----
+   On DESKTOP the wordmark's hover hint already offers this, so the standalone control is
+   hidden there. On MOBILE (no hover) it's an always-visible text link in the top-right
+   corner, mirroring the wordmark's heavy-blur box, flush to the top-right corner. Its
+   label swaps with the mode: "View full gallery" in the montage, "View Artwork Montage"
+   in the gallery. */
+.intro__toggle {
+  position: absolute; top: 0; right: 0; z-index: 6;
+  display: none;                                   /* desktop: hover hint handles it */
+  align-items: center; gap: 8px;
+  color: #f3ece2; font-family: 'Roboto Slab', serif; cursor: pointer; border: 0;
+  padding: 24px 24px 18px 22px;
+  background: rgba(0,0,0,.04);
+  -webkit-backdrop-filter: blur(22px) saturate(1.05); backdrop-filter: blur(22px) saturate(1.05);
+  border-left: 1px solid rgba(255,255,255,.07);
+  border-bottom: 1px solid rgba(255,255,255,.07);
+  border-bottom-left-radius: 16px;
+  transition: background .2s ease, transform .1s ease, opacity .3s ease;
+}
+.intro__toggle:active { transform: scale(.97); }
+.intro__toggle svg { width: 20px; height: 20px; fill: currentColor; flex: 0 0 auto; }
+.intro__toggle span > span,
+.intro__toggle-gallery, .intro__toggle-montage { display: inline-flex; align-items: center; gap: 8px; }
+.intro__toggle-gallery span, .intro__toggle-montage span {
+  font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; opacity: .9; white-space: nowrap;
+}
+/* show the right label for the current mode */
+.intro__toggle-montage { display: none; }
+.intro.is-grid .intro__toggle-gallery { display: none; }
+.intro.is-grid .intro__toggle-montage { display: inline-flex; }
+/* the toggle is a mobile affordance; show it on touch-width screens */
+@media (max-width: 720px) {
+  .intro__toggle { display: inline-flex; }
+  /* on mobile the hover hint is unreachable AND the persistent top-right toggle replaces
+     it — so drop the hint spans entirely. This also stops them sizing the wordmark box, so
+     it hugs just "1984drum" instead of the long label and can't collide with the toggle. */
+  .intro__title .intro__hint { display: none; }
+}
+/* on the narrowest phones, tighten the toggle so the longer "View Artwork Montage" label
+   (grid mode) still clears the wordmark box without crowding it */
+@media (max-width: 480px) {
+  .intro__toggle { padding: 22px 16px 16px 16px; gap: 6px; }
+  .intro__toggle svg { width: 17px; height: 17px; }
+  .intro__toggle-gallery span, .intro__toggle-montage span { font-size: 10.5px; letter-spacing: 1px; }
+}
+/* hide both top controls during the opening landing, like the rest of the chrome */
+.intro.is-landing .intro__toggle { opacity: 0 !important; pointer-events: none; transition: opacity .6s ease; }
 
 /* ---- masonry grid overlay (toggled by the wordmark) ---- */
 .intro__grid {

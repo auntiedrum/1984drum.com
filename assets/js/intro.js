@@ -914,12 +914,16 @@
   }
   // wordmark: in the MONTAGE it opens the GALLERY (grid); in the GALLERY it returns to /
   // plays a MONTAGE. Its hover label/icon swap to match (see CSS + the markup spans).
-  titleEl.addEventListener('click', function (e) {
-    e.stopPropagation();
+  function toggleGrid(e) {
+    if (e) e.stopPropagation();
     if (landing.active) return;                  // ignore during the opening landing
     if (root.classList.contains('is-grid')) exitGrid();   // -> play a montage
     else enterGrid();                                     // -> open the gallery
-  });
+  }
+  titleEl.addEventListener('click', toggleGrid);
+  // persistent top-right toggle (visible on mobile; same action as the wordmark hint)
+  var toggleEl = root.querySelector('.intro__toggle');
+  if (toggleEl) toggleEl.addEventListener('click', toggleGrid);
   window.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') { if (root.classList.contains('is-lightbox')) closeLightbox(); else if (gridMode) exitGrid(); }
   });
