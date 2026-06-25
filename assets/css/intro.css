@@ -90,7 +90,7 @@ body.has-intro .site-container { display: none; }
 
 /* ---- unmute lozenge ----
    While muted, hovering the unmute button makes THE BUTTON ITSELF stretch from a circle
-   into a pill that grows to the LEFT, revealing "AUDIO WORK". There is only ONE element
+   into a pill that grows to the LEFT, revealing "TURN ON AUDIO". There is only ONE element
    (one background, one blur) so it reads as a single lozenge — not a separate capsule
    stacked on the circle. The speaker icon stays at the right (where the circle was) and the
    text sits to its left with a gap, never overlapping it.
@@ -99,9 +99,12 @@ body.has-intro .site-container { display: none; }
 .intro__mute-btn {
   position: relative; overflow: hidden; justify-content: flex-end;
   width: auto; min-width: 48px; max-width: 48px;     /* circle at rest (clips the text) */
+  /* FIXED 24px (= half the 48px height) so the ends are always perfect half-circles as it
+     slides open — a stadium/pill, never a squished "lip". (50% would distort while widening.) */
+  border-radius: 24px;
   padding: 0 13px;                                    /* 13px each side -> 48px wide, icon stays centred/pinned right */
   transition: background .2s ease, transform .08s ease, opacity .25s ease,
-              max-width .8s cubic-bezier(.16,1,.3,1), border-radius .8s ease;
+              max-width .8s cubic-bezier(.16,1,.3,1);
 }
 .intro__mute-btn .intro__mute-prompt {
   display: inline-block; white-space: nowrap; overflow: hidden;
@@ -115,7 +118,7 @@ body.has-intro .site-container { display: none; }
 }
 /* only while muted + hovered/focused (it's the unmute affordance): button becomes a pill */
 .intro__mute-btn.is-muted:hover,
-.intro__mute-btn.is-muted:focus-visible { max-width: 260px; border-radius: 24px; }
+.intro__mute-btn.is-muted:focus-visible { max-width: 260px; }
 .intro__mute-btn.is-muted:hover .intro__mute-prompt,
 .intro__mute-btn.is-muted:focus-visible .intro__mute-prompt {
   max-width: 200px; opacity: 1; margin-right: 12px;   /* gap between text and the icon */
