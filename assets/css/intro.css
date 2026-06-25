@@ -251,14 +251,26 @@ body.has-intro .site-container { display: none; }
    The "Artworks" sub-label is dropped so "1984drum" sits on one line, level with the
    toggle. The toggle label keeps the glitch flicker the desktop hover hint had. */
 @media (max-width: 720px) {
+  /* shared bar padding so the gap left of "ARTWORKS" == the gap right of the toggle */
+  .intro { --introbar-padx: 22px; --introbar-pady: 18px; }
   .intro__title {
     left: 0; right: 0;                 /* full-width bar */
     flex-direction: row; align-items: center;
     display: flex;                     /* row of brand (left) + spacer; toggle overlays right */
     min-width: 0 !important;           /* never the hover min-width on mobile */
+    padding: var(--introbar-pady) var(--introbar-padx);
+    background: rgba(0,0,0,.225);      /* half the desktop box darkness */
+    border-radius: 0;                  /* square: no filleted top corners */
+    text-shadow: none;                 /* no drop shadow on the bar text */
   }
-  .intro__title small { display: none; }            /* drop "Artworks" -> single line */
   .intro__title .intro__hint { display: none; }     /* hover hints unused on mobile */
+  /* mobile shows "ARTWORKS" (the promoted sub-label), not the "1984drum" name */
+  .intro__title .intro__brand { line-height: 1; }   /* tight line-box -> symmetric top/bottom */
+  .intro__title .intro__brand-name { display: none; }
+  .intro__title small {
+    display: block; margin: 0;
+    font-size: 13px; opacity: .92; letter-spacing: 2px; text-transform: uppercase; line-height: 1;
+  }
 
   .intro__toggle {
     display: inline-flex; align-items: center;
@@ -266,15 +278,16 @@ body.has-intro .site-container { display: none; }
     height: var(--introbar-h, 64px);   /* matches the title bar's height (JS sets the var) */
     background: none;                  /* the title bar provides the shared background */
     -webkit-backdrop-filter: none; backdrop-filter: none;
-    padding-top: 0; padding-bottom: 0; /* height + align-items handle vertical centring */
+    padding: 0 var(--introbar-padx);   /* right padding == title's left padding; height handles vertical */
     z-index: 7;                        /* above the title bar */
   }
   /* keep the glitch flicker on whichever toggle label is active (no hover on mobile) */
   .intro__toggle-gallery, .intro__toggle-montage { animation: intro-glitch 2.4s steps(2) infinite; }
 }
-/* on the narrowest phones, tighten so "View Artwork Montage" still fits beside "1984drum" */
+/* on the narrowest phones, tighten so "View Artwork Montage" still fits beside "ARTWORKS" */
 @media (max-width: 480px) {
-  .intro__toggle { padding: 16px; gap: 6px; }
+  .intro { --introbar-padx: 16px; }
+  .intro__toggle { gap: 6px; }
   .intro__toggle svg { width: 17px; height: 17px; }
   .intro__toggle-gallery span, .intro__toggle-montage span { font-size: 10.5px; letter-spacing: 1px; }
 }
