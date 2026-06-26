@@ -149,8 +149,12 @@ body.has-intro .site-container { display: none; }
   text-transform: uppercase; text-shadow: 0 2px 12px rgba(0,0,0,.8);
   max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+/* prev/next only appear in the gallery AND once the audio graph can act instantly
+   (buffers decoded + context running) — so a tap always does something, never a dead press
+   on a still-buffering/suspended mix. */
 .intro__prev-btn, .intro__next-btn { display: none; }
-.intro.is-grid .intro__prev-btn, .intro.is-grid .intro__next-btn { display: flex; }
+.intro.is-grid.audio-ready .intro__prev-btn,
+.intro.is-grid.audio-ready .intro__next-btn { display: flex; }
 .intro.is-grid .intro__track { opacity: .9; }
 /* in grid view the bar sits above the masonry overlay */
 .intro.is-grid .intro__bar { z-index: 5; }
@@ -172,11 +176,11 @@ body.has-intro .site-container { display: none; }
 .intro.is-landing .intro__title { opacity: 0 !important; pointer-events: none; transition: opacity .6s ease; }
 
 /* ---- single top toggle button ----
-   One control swaps the view: "Play Montage" while the gallery (masonry) is showing,
-   "View Gallery" while the montage plays. It sits in a heavy-blur glass box, top-left on
-   desktop, with EQUAL padding all round the (single-line, centred) label and the glitch
-   flicker. The two labels stack in one grid cell so only the active one shows and the box
-   hugs whichever is current. */
+   One control swaps the view, labelled by the ACTION it performs: "View Gallery" while the
+   montage plays, "View Montage" while the gallery (masonry) is showing. It sits in a
+   heavy-blur glass box, top-left on desktop, with EQUAL padding all round the (single-line,
+   centred) label and the glitch flicker. The two labels stack in one grid cell so only the
+   active one shows and the box hugs whichever is current. */
 .intro__title {
   position: absolute; top: 0; left: 0; z-index: 6;
   color: #f3ece2; font-family: 'Roboto Slab', serif;
@@ -190,16 +194,20 @@ body.has-intro .site-container { display: none; }
 }
 .intro__title:hover { background: rgba(0,0,0,.55); }
 .intro__title:active { transform: scale(.98); }
+/* don't offer the toggle until the masonry is pre-built (grid-ready) — so it never opens
+   to an empty/broken gallery. (is-landing already hides it during the opening clip.) */
+.intro:not(.grid-ready) .intro__title { opacity: 0; pointer-events: none; }
 .intro__label {
   grid-area: 1 / 1;                        /* both labels overlap in the same cell */
   font-size: 13px; opacity: .95; white-space: nowrap; line-height: 1;
 }
-/* show the label that matches the current mode (montage label while NOT in the grid) */
-.intro__label--gallery { display: none; }
-.intro:not(.is-grid) .intro__label--montage { display: block; }
-.intro:not(.is-grid) .intro__label--gallery { display: none; }
-.intro.is-grid .intro__label--montage { display: none; }
-.intro.is-grid .intro__label--gallery { display: block; }
+/* label = the action the button does: montage playing -> "View Gallery";
+   gallery showing -> "View Montage" */
+.intro__label--montage { display: none; }
+.intro:not(.is-grid) .intro__label--gallery { display: block; }
+.intro:not(.is-grid) .intro__label--montage { display: none; }
+.intro.is-grid .intro__label--gallery { display: none; }
+.intro.is-grid .intro__label--montage { display: block; }
 /* glitch flicker on the visible label (matches the old hover effect, now always-on) */
 .intro__title .intro__label { animation: intro-glitch 2.6s steps(2) infinite; }
 @keyframes intro-glitch {
@@ -264,6 +272,14 @@ body.has-intro .site-container { display: none; }
   position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
 }
 .intro__cell:hover img, .intro__cell:hover video { filter: none; }
+/* LQIP placeholder: the tiny baked thumb stretched up — kept soft so it reads as a
+   placeholder, then the full image swaps in (see is-loaded fade). */
+.intro__cell img.is-lqip {
+  filter: sepia(0.32) saturate(0.78) contrast(0.94) brightness(1.02) blur(6px);
+  transform: scale(1.06);                 /* hide blur fringing at the edges */
+}
+.intro__cell img.is-loaded { animation: introCellFade .35s ease; }
+@keyframes introCellFade { from { opacity: .35; } to { opacity: 1; } }
 /* progressively pixelated repeats on infinite scroll — stretch the blocky thumb, no smoothing */
 .intro__cell img.is-pixelated, .intro__cell video.is-pixelated {
   image-rendering: pixelated; image-rendering: -moz-crisp-edges; image-rendering: crisp-edges;

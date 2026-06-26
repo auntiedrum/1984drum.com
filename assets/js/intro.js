@@ -21,6 +21,13 @@
   if (!root) return;
 
   var BASE = root.getAttribute('data-base') || '/assets/tape/';
+  // cache-bust the JSON manifests with the same ?v= this script was loaded under, so a
+  // returning visitor never gets a stale explore.json (e.g. one baked before LQIPs existed).
+  var VER = (function () {
+    var s = document.currentScript || (function () { var a = document.getElementsByTagName('script'); return a[a.length - 1]; })();
+    var m = s && s.src && s.src.match(/[?&]v=([^&]+)/);
+    return m ? ('?v=' + m[1]) : '';
+  })();
 
   // mark the page so CSS can float the site nav transparently over the art and lock scroll
   document.body.classList.add('has-intro');
@@ -59,8 +66,8 @@
   // ---------- manifests ----------
   var clips = [], gallery = [];   // gallery = ordered explore list (stills + video clips)
   Promise.all([
-    fetch(BASE + 'clips.json').then(function (r) { return r.json(); }),
-    fetch(BASE + 'explore.json').then(function (r) { return r.json(); })
+    fetch(BASE + 'clips.json' + VER).then(function (r) { return r.json(); }),
+    fetch(BASE + 'explore.json' + VER).then(function (r) { return r.json(); })
   ]).then(function (res) {
     clips = (res[0].clips || []);
     gallery = (res[1].explore || []);
@@ -68,6 +75,11 @@
     setupLanding();
     fitCanvas();
     startVisuals();
+    // PRE-BUILD the masonry now (off-screen) so it's instant + complete when opened: every
+    // cell shows its baked LQIP immediately and the full thumbs stream in behind. Only THEN
+    // do we offer the gallery toggle (grid-ready), so it never opens to an empty/broken grid.
+    buildGrid();
+    root.classList.add('grid-ready');
     // the mix runs from load, silent (muted). Browsers allow a muted/silent context; the
     // first user UNMUTE resumes + fades it in. Play button stays hidden until then.
     ensureCtx();
@@ -443,10 +455,20 @@
   var actx = null, master = null, comp = null;
   var seq = [], sources = [], buffers = {};
   var audioStarted = false, audioOn = false;
+  var buffersLoaded = false;   // every clip decoded and ready to schedule instantly
+  var audioReady = false;      // buffers loaded AND the context is actually running
   var LOOP_TARGET = 560;   // ~9 min loop — long enough to cycle through all the scraped clips
   var FADE_IN = 5;         // exactly 5s
   var VOL = 0.85;
   var aT0 = 0, loopTimer = null, clipWatch = null, lastClipIdx = -1;
+  // prev/next must only be offered when audio can act INSTANTLY (buffers decoded + context
+  // running) — otherwise on mobile a tap on a suspended/loading graph does nothing. Reflect
+  // readiness as a class the CSS uses to reveal the arrows, and re-check on a light poll.
+  function updateAudioReady() {
+    var r = buffersLoaded && !!actx && actx.state === 'running';
+    if (r) beginPlayback();   // first time the graph is live + loaded, start the mix
+    if (r !== audioReady) { audioReady = r; root.classList.toggle('audio-ready', audioReady); }
+  }
 
   function eff(b) { while (b > 160) b /= 2; while (b < 80) b *= 2; return b; }
   function trackOf(id) { return id.replace(/-[a-z]$/, ''); }
@@ -511,6 +533,7 @@
     comp.threshold.value = -12; comp.knee.value = 24; comp.ratio.value = 3;
     comp.attack.value = 0.012; comp.release.value = 0.30;
     master.connect(comp); comp.connect(actx.destination);
+    actx.onstatechange = updateAudioReady;   // running<->suspended flips the arrows on/off
   }
   function scheduleOnce(when) {
     seq.forEach(function (s) {
@@ -537,42 +560,44 @@
   }
   function seqDuration() { if (!seq.length) return LOOP_TARGET; var l = seq[seq.length - 1]; return l.startAt + l.dur; }
   var schedHorizon = 0;   // ctx time we've scheduled audio up to
+  var playbackStarted = false;
   function startAudio() {
     if (audioStarted) return; audioStarted = true;
     ensureCtx();
     seq = buildSequence();
     var ids = []; seq.forEach(function (s) { if (ids.indexOf(s.clip.id) < 0) ids.push(s.clip.id); });
-    // Load ALL buffers first (settle, not all) so no clip is ever silently skipped at
-    // schedule time — the previous "schedule after 6" left growing gaps that killed the
-    // mix ~2/3 through. Then schedule the first pass and keep extending the schedule
-    // continuously so it never runs out.
+    // Load ALL buffers first so no clip is ever silently skipped at schedule time. We do NOT
+    // schedule yet: on mobile the context is SUSPENDED until a gesture and its clock is frozen
+    // at 0, so scheduling now would queue everything at ~0s and it'd be stale/silent by the
+    // time the user unmutes. Instead we wait until the context is actually RUNNING (first
+    // unmute/play) and schedule from the live clock — clean start on every platform.
     Promise.all(ids.map(function (id) { return loadBuffer(id).catch(function () { return null; }); })).then(function () {
-      var dur = seqDuration();
-      var when = actx.currentTime + 0.15; aT0 = when;
-      scheduleOnce(when);              // pass 1
-      scheduleOnce(when + dur);        // pass 2 — already queued so there's never a gap
-      schedHorizon = when + 2 * dur;
-      // keep at least ~one extra loop scheduled ahead at all times
-      loopTimer = setInterval(function () {
-        if (!actx) return;
-        while (schedHorizon - actx.currentTime < dur * 1.2) {
-          scheduleOnce(schedHorizon);
-          schedHorizon += dur;
-        }
-      }, 3000);
-      // watch which clip is sounding; change the "track name" word when it advances.
-      // lastClipIdx is module-scoped so skipClip() can pre-set it and we don't double-fire
-      // pickWord() for a single user-driven jump.
-      clipWatch = setInterval(function () {
-        if (!actx || actx.state !== 'running') return;
-        var p = (actx.currentTime - aT0) % dur; if (p < 0) p += dur;
-        var ci = 0; for (var i = 0; i < seq.length; i++) { if (p >= seq[i].startAt) ci = i; }
-        // keep the "Now Playing" title locked to the clip that's actually sounding — even
-        // before the user unmutes, so the gallery bar is always truthful. Polled tightly so
-        // it snaps to the real clip (and self-corrects any skip-anchor drift) within a beat.
-        if (ci !== lastClipIdx) { lastClipIdx = ci; pickWord(seq[ci] && seq[ci].clip); }
-      }, 300);
+      buffersLoaded = true;
+      updateAudioReady();
+      if (actx.state === 'running') beginPlayback();   // desktop: may already be running
     });
+  }
+  // schedule the mix from the live clock and keep it extended — runs once, the first time the
+  // context is genuinely running with buffers ready.
+  function beginPlayback() {
+    if (playbackStarted || !buffersLoaded || !actx || actx.state !== 'running') return;
+    playbackStarted = true;
+    var dur = seqDuration();
+    var when = actx.currentTime + 0.12; aT0 = when;
+    scheduleOnce(when);              // pass 1
+    scheduleOnce(when + dur);        // pass 2 — already queued so there's never a gap
+    schedHorizon = when + 2 * dur;
+    loopTimer = setInterval(function () {
+      if (!actx) return;
+      while (schedHorizon - actx.currentTime < dur * 1.2) { scheduleOnce(schedHorizon); schedHorizon += dur; }
+    }, 3000);
+    // watch which clip is sounding; keep the "Now Playing" title locked to it.
+    clipWatch = setInterval(function () {
+      if (!actx || actx.state !== 'running') return;
+      var p = (actx.currentTime - aT0) % dur; if (p < 0) p += dur;
+      var ci = 0; for (var i = 0; i < seq.length; i++) { if (p >= seq[i].startAt) ci = i; }
+      if (ci !== lastClipIdx) { lastClipIdx = ci; pickWord(seq[ci] && seq[ci].clip); }
+    }, 300);
   }
   function fadeAudio(target, secs) {
     if (!actx || !master) return;
@@ -652,10 +677,17 @@
     audioOn = playing && !muted && !gridMode;
     fadeAudio(playing && !muted ? VOL : 0.0001, secs);
   }
+  function resumeCtx() {
+    if (actx && actx.state === 'suspended') {
+      var p = actx.resume();
+      if (p && p.then) p.then(updateAudioReady);
+    }
+    updateAudioReady();
+  }
   function setPlaying(on) {
     playing = on;
     if (on) {
-      if (actx && actx.state === 'suspended') actx.resume();
+      resumeCtx();
       applyAudioLevel(1.0);
     } else {
       applyAudioLevel(0.4);
@@ -667,7 +699,7 @@
     muted = on;
     if (!on) {                                   // first unmute "engages" the player UI
       if (!engaged) { engaged = true; pickWord(); }
-      if (actx && actx.state === 'suspended') actx.resume();
+      resumeCtx();
       playing = true;
     }
     applyAudioLevel(on ? 0.25 : FADE_IN);        // fade the music IN over FADE_IN on unmute
@@ -675,7 +707,7 @@
   }
   // jump the live audio to another clip in the sequence (+ a fresh word)
   function skipClip(dir) {
-    if (!actx || !seq.length) return;
+    if (!audioReady || !actx || !seq.length) return;   // never act on a not-ready graph
     var dur = seqDuration();
     var posInLoop = (actx.currentTime - aT0) % dur; if (posInLoop < 0) posInLoop += dur;
     // which clip are we in?
@@ -759,6 +791,16 @@
         // progressive pixelation: quarter the dimensions per loop (nearest-neighbour),
         // then let CSS stretch it back to size.
         pixelateImage(item.disp, media, level, item.w || 600, item.h || 600);
+      } else if (item.lqip) {
+        // INSTANT placeholder: the baked tiny base64 LQIP shows immediately (zero network),
+        // so the grid is never empty/broken. The full thumb loads in the background and
+        // fades over the placeholder once it has actually decoded.
+        media.classList.add('is-lqip');
+        media.src = item.lqip;
+        var full = new Image();
+        full.decoding = 'async';
+        full.onload = function () { media.src = item.disp; media.classList.remove('is-lqip'); media.classList.add('is-loaded'); };
+        full.src = item.disp;
       } else {
         media.src = item.disp;
       }
