@@ -86,17 +86,32 @@
     startAudio();
     pickWord();
     refreshPlayerUI();
-  }).catch(function () { /* overlay still shows; visuals just won't run */ });
+  }).catch(function () { landing.active = false; root.classList.remove('is-landing'); /* visuals just won't run */ });
 
   // ---------- landing: open on a live drawing clip, slowly zooming, while the montage loads ----------
-  var landing = { active: true, media: null, start: 0, DUR: 8 };
+  var landing = { active: true, media: null, start: 0, DUR: 8, deadline: 0, killTimer: null };
   function setupLanding() {
     var vids = gallery.filter(function (g) { return g.video; });
     if (!vids.length) { landing.active = false; return; }
     var pick = vids[Math.floor(visRand() * vids.length)];
     landing.media = getMedia(pick);                 // a playing, muted, looping clip
-    root.classList.add('is-landing');               // CSS hides the chrome during landing
+    root.classList.add('is-landing');               // CSS dims the chrome during landing
     preloadAround(0);                               // warm the montage's first pieces
+    // GUARANTEED exit on a WALL-CLOCK deadline (not the throttle-prone visuals clock, and
+    // immune to the landing video never decoding) — so the gallery toggle is never locked
+    // out behind a stalled landing on mobile.
+    landing.deadline = Date.now() + 9000;
+    landing.killTimer = setTimeout(endLanding, 9000);
+    if (landing.media) landing.media.addEventListener('error', endLanding);  // broken clip -> exit
+  }
+  // idempotent landing exit — the ONE place that clears the latch
+  function endLanding() {
+    if (!landing.active) return;
+    landing.active = false;
+    if (landing.killTimer) { clearTimeout(landing.killTimer); landing.killTimer = null; }
+    root.classList.remove('is-landing');
+    vis.cur = null;                                 // renderVisual splices the first piece in
+    spliceAt = (typeof clock === 'number' ? clock : 0);
   }
   function drawLanding(now) {
     if (!landing.start) landing.start = now;
@@ -117,12 +132,9 @@
       cctx.fillStyle = '#06100c'; cctx.fillRect(0, 0, W, H);
     }
     drawFilmOverlay(now);
-    // once the zoom completes AND the clip has really started, splice into the montage
-    if (p >= 1 && ready(landing.media)) {
-      landing.active = false;
-      root.classList.remove('is-landing');
-      vis.cur = null;                                // renderVisual splices the first piece in
-      spliceAt = now;
+    // exit when the zoom completes AND the clip has started — OR the wall-clock deadline passes
+    if ((p >= 1 && ready(landing.media)) || (landing.deadline && Date.now() > landing.deadline)) {
+      endLanding();
     }
   }
 
@@ -749,6 +761,17 @@
   var gridBuilt = false;
 
   var loopLevel = 0;          // how many times the grid has repeated (drives pixelation)
+  // Map an item's full-screen display source to its ~600px sibling for the grid tiles, which
+  // render only ~116-320px wide. Loading the 1920px disp there is ~10-30x waste and was
+  // saturating mobile bandwidth (≈30MB of stills) so the grid stalled/looked broken. Every
+  // still has a _rw_600 variant; handles both URL shapes. Videos/missing -> unchanged.
+  //   "<id>_rw_1920.jpg" -> "<id>_rw_600.jpg"   ;   "<id>.jpg" -> "<id>_rw_600.jpg"
+  function thumbUrl(item) {
+    var u = item.disp;
+    if (item.video || !u) return u;
+    if (/_rw_\d+\.(?:jpe?g|png|webp)$/i.test(u)) return u.replace(/_rw_\d+(\.(?:jpe?g|png|webp))$/i, '_rw_600$1');
+    return u.replace(/(\.(?:jpe?g|png|webp))$/i, '_rw_600$1');
+  }
   function makeCell(item, level) {
     var cell = document.createElement('div');
     cell.className = 'intro__cell' + (item.video ? ' is-video' : '');
@@ -764,9 +787,17 @@
     var media;
     if (item.video) {
       media = document.createElement('video');
-      media.muted = true; media.loop = true; media.playsInline = true; media.preload = 'metadata';
+      // preload='none': the grid pre-builds ~18 video cells on load; eager metadata fetches
+      // (×2 with webm) blew past mobile's concurrent-decoder + connection limits, stalling the
+      // whole grid. The clip still loads on hover/tap (wireClipCell calls play()).
+      media.muted = true; media.loop = true; media.playsInline = true; media.preload = 'none';
       media.setAttribute('muted', ''); media.setAttribute('playsinline', '');
-      if (item.webm) { var sw = document.createElement('source'); sw.src = item.webm; sw.type = 'video/webm'; media.appendChild(sw); }
+      // a baked first-frame poster (data-URI) so the cell shows an image instantly with
+      // preload='none' — without it the tile would be a blank box until played.
+      if (item.lqip) media.poster = item.lqip;
+      // drop the WebM source where it can't play (Safari/iOS) so we never fetch a dead source
+      var canWebm = !!media.canPlayType && !!media.canPlayType('video/webm').replace('no', '');
+      if (item.webm && canWebm) { var sw = document.createElement('source'); sw.src = item.webm; sw.type = 'video/webm'; media.appendChild(sw); }
       var sm = document.createElement('source'); sm.src = item.disp; sm.type = 'video/mp4'; media.appendChild(sm);
       media.addEventListener('error', dropCell);
       cell.appendChild(media);
@@ -787,22 +818,24 @@
       if (item.w && item.h) { media.width = item.w; media.height = item.h; }
       cell.appendChild(media);
       cell.addEventListener('click', function () { openLightbox(item); });
+      var thumb = thumbUrl(item);
       if (level > 0) {
         // progressive pixelation: quarter the dimensions per loop (nearest-neighbour),
-        // then let CSS stretch it back to size.
-        pixelateImage(item.disp, media, level, item.w || 600, item.h || 600);
+        // then let CSS stretch it back to size. (pixelateImage's probe.onerror -> disp.)
+        pixelateImage(thumb, media, level, item.w || 600, item.h || 600);
       } else if (item.lqip) {
         // INSTANT placeholder: the baked tiny base64 LQIP shows immediately (zero network),
-        // so the grid is never empty/broken. The full thumb loads in the background and
-        // fades over the placeholder once it has actually decoded.
+        // so the grid is never empty/broken. The light 600px thumb loads in the background
+        // and fades over the placeholder once decoded (falling back to disp if no _rw_600).
         media.classList.add('is-lqip');
         media.src = item.lqip;
         var full = new Image();
         full.decoding = 'async';
-        full.onload = function () { media.src = item.disp; media.classList.remove('is-lqip'); media.classList.add('is-loaded'); };
-        full.src = item.disp;
+        full.onload = function () { media.src = full.src; media.classList.remove('is-lqip'); media.classList.add('is-loaded'); };
+        full.onerror = function () { if (full.src.indexOf(item.disp) < 0) { full.onerror = null; full.src = item.disp; } };
+        full.src = thumb;
       } else {
-        media.src = item.disp;
+        media.src = thumb;
       }
     }
     return cell;
@@ -965,12 +998,17 @@
   // returns to a MONTAGE. Its label swaps to match (see CSS + the two label spans).
   function toggleGrid(e) {
     if (e) e.stopPropagation();
-    if (landing.active) return;                  // ignore during the opening landing
+    if (landing.active) endLanding();            // tapping the wordmark escapes landing first
     if (root.classList.contains('is-grid')) exitGrid();   // -> play a montage
     else enterGrid();                                     // -> open the gallery
   }
   titleEl.addEventListener('click', toggleGrid);
   window.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') { if (root.classList.contains('is-lightbox')) closeLightbox(); else if (gridMode) exitGrid(); }
+  });
+  // a phone backgrounded during landing freezes BOTH the visuals clock and setTimeout; on
+  // return to foreground, re-check the wall-clock deadline so a stalled landing exits at once.
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden && landing.active && landing.deadline && Date.now() > landing.deadline) endLanding();
   });
 })();

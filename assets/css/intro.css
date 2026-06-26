@@ -249,7 +249,7 @@ body.has-intro .site-container { display: none; }
   column-count: 4; column-gap: 2px; width: 100%; margin: 0;
 }
 @media (max-width: 1100px) { .intro__grid-masonry { column-count: 3; } }
-@media (max-width: 720px)  { .intro__grid-masonry { column-count: 2; } }
+@media (max-width: 720px)  { .intro__grid-masonry { column-count: 3; } }
 .intro__cell {
   display: block; width: 100%; margin: 0 0 2px; break-inside: avoid;
   border: 0; padding: 0; background: #0c1712; cursor: zoom-in;
