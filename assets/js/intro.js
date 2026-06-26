@@ -104,7 +104,7 @@
     } else {
       cctx.fillStyle = '#06100c'; cctx.fillRect(0, 0, W, H);
     }
-    drawFilmOverlay(now, p);   // diagonal reveal sweeps open as the landing clip zooms in
+    drawFilmOverlay(now);
     // once the zoom completes AND the clip has really started, splice into the montage
     if (p >= 1 && ready(landing.media)) {
       landing.active = false;
@@ -231,8 +231,8 @@
     cctx.restore();
   }
 
-  // ---- film grain overlay (the 70s vibe, drawn over the whole frame) ----
-  var grainTile = null, grainSize = 180;
+  // ---- film grain + vignette overlay (the 70s vibe, drawn over the whole frame) ----
+  var grainTile = null, grainSize = 180, vignetteCache = null, vigKey = '';
   function buildGrain() {
     grainTile = document.createElement('canvas');
     grainTile.width = grainSize; grainTile.height = grainSize;
@@ -246,55 +246,22 @@
     }
     g.putImageData(img, 0, 0);
   }
-  // ---- diagonal reveal ----
-  // Instead of a circular vignette, two diagonal lines (at DIFFERENT angles) mask the frame:
-  // the band between them is visible, the two outer wedges are darkened. Per piece the lines
-  // start near centre (little revealed) and sweep apart over the dwell (revealing more to each
-  // side), and both lines slowly CHANGE ANGLE while the piece is shown. Fully open near the
-  // end so the whole piece is seen before the cut.
-  // Darken everything on the FAR side of a line. The line passes through a pivot that sits
-  // `gap` px from centre along direction (ux,uy); the wedge filled is the half-plane on that
-  // same outward side. So bigger gap => the dark edge sits further out => more of the piece
-  // shows. `ang` is the line's direction (it tilts the cut); (ux,uy) is the outward unit dir.
-  function darkenOutside(ux, uy, gap, ang, color) {
-    var px = W / 2 + ux * gap, py = H / 2 + uy * gap;     // pivot point on the line
-    var dx = Math.cos(ang), dy = Math.sin(ang);           // line direction
-    var R = Math.hypot(W, H) * 2;                          // covers the canvas comfortably
-    var ax = px + dx * R, ay = py + dy * R;
-    var bx = px - dx * R, by = py - dy * R;
-    cctx.beginPath();
-    cctx.moveTo(ax, ay);
-    cctx.lineTo(bx, by);
-    cctx.lineTo(bx + ux * R, by + uy * R);                // push out along the outward dir
-    cctx.lineTo(ax + ux * R, ay + uy * R);
-    cctx.closePath();
-    cctx.fillStyle = color; cctx.fill();
+  function ensureVignette() {
+    var key = W + 'x' + H;
+    if (vigKey === key && vignetteCache) return;
+    vigKey = key;
+    vignetteCache = document.createElement('canvas');
+    vignetteCache.width = W; vignetteCache.height = H;
+    var g = vignetteCache.getContext('2d');
+    var grd = g.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.30, W / 2, H / 2, Math.max(W, H) * 0.72);
+    grd.addColorStop(0, 'rgba(0,0,0,0)');
+    grd.addColorStop(0.7, 'rgba(20,12,4,0.12)');
+    grd.addColorStop(1, 'rgba(15,8,2,0.52)');
+    g.fillStyle = grd; g.fillRect(0, 0, W, H);
   }
-  function drawDiagonalReveal(now, p) {
-    var op = p * (2 - p);                                  // easeOutQuad 0->1 (decelerates open)
-    var t = now;
-    var reach = Math.hypot(W, H) * 0.55;
-    // two cuts on roughly opposite sides of the frame, each a DIFFERENT tilt that drifts.
-    // outward dirs ~ up-left and down-right, so the visible band runs diagonally.
-    var dirA = 2.50 + 0.25 * Math.sin(t * 0.33);          // ~143deg (up-left), drifting
-    var dirB = dirA + Math.PI + 0.55 + 0.20 * Math.sin(t * 0.27 + 1.1); // opposite-ish, different angle
-    var uAx = Math.cos(dirA), uAy = Math.sin(dirA);
-    var uBx = Math.cos(dirB), uBy = Math.sin(dirB);
-    // the cut LINE direction is perpendicular to the outward dir, plus its own drift so the
-    // angle of the diagonal itself changes while the piece shows.
-    var angA = dirA + Math.PI / 2 + 0.16 * Math.sin(t * 0.5);
-    var angB = dirB + Math.PI / 2 + 0.14 * Math.sin(t * 0.43 + 2.0);
-    // gap grows from a slim opening to fully clear of the frame as the piece reveals
-    var gapA = (0.06 + 0.94 * op) * reach;
-    var gapB = (0.08 + 0.92 * op) * reach;
-    var col = 'rgba(8,5,2,0.94)';
-    cctx.save();
-    darkenOutside(uAx, uAy, gapA, angA, col);
-    darkenOutside(uBx, uBy, gapB, angB, col);
-    cctx.restore();
-  }
-  function drawFilmOverlay(now, p) {
+  function drawFilmOverlay(now) {
     if (!grainTile) buildGrain();
+    ensureVignette();
     // moving grain — tile it with a per-frame offset so it shimmers like real film
     var ox = ((visRand() * grainSize) | 0), oy = ((visRand() * grainSize) | 0);
     cctx.save();
@@ -306,8 +273,11 @@
       }
     }
     cctx.restore();
-    // diagonal reveal mask (replaces the circular vignette). p is the piece's dwell progress.
-    if (typeof p === 'number') drawDiagonalReveal(now, p);
+    // vignette
+    cctx.save();
+    cctx.globalAlpha = 1;
+    cctx.drawImage(vignetteCache, 0, 0);
+    cctx.restore();
     // subtle whole-frame brightness flicker (warm), like a worn projector lamp
     var flick = 0.04 * Math.sin(now * 4.1) + 0.025 * Math.sin(now * 11.3);
     if (flick > 0) {
@@ -387,11 +357,8 @@
     if (backMedia) drawStaticCover(backMedia);
     // draw the current piece on top, full-frame with its handheld motion
     drawCover(vis.cur, vis.curKB, Math.min(1, (now - vis.curBorn) / KB_SPAN), 1);
-    // the 70s film vibe over everything: grain, diagonal reveal, lamp flicker — plus the splice
-    // flash. The reveal progress runs over the piece's dwell (clamped just shy of fully-open at
-    // the start so each cut re-closes the diagonals).
-    var revealP = Math.min(1, (now - vis.curBorn) / (SWAP_EVERY * 0.92));
-    drawFilmOverlay(now, revealP);
+    // the 70s film vibe over everything: grain, vignette, lamp flicker — plus the splice flash
+    drawFilmOverlay(now);
     drawSplice(now);
     // keep the scrub bar in sync with auto-advance
     if (!scrubbing) setSeekUI(idx / Math.max(1, gallery.length - 1));

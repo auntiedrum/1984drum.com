@@ -29,8 +29,12 @@ body.has-intro .site-container { display: none; }
   object-fit: cover;
 }
 
-/* (the cinematic edge treatment is now the canvas-drawn DIAGONAL reveal in intro.js —
-   no circular CSS vignette) */
+/* soft vignette so the video edges feel cinematic, never a hard box */
+.intro::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 1;
+  box-shadow: inset 0 0 220px rgba(0,0,0,.55);
+  background: radial-gradient(120% 120% at 50% 45%, transparent 55%, rgba(0,0,0,.35));
+}
 
 /* ---- bottom audio player bar ----
    Left group: play/pause + (gallery) prev. Centre: track-name word (gallery only).
