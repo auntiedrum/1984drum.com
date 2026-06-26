@@ -29,12 +29,8 @@ body.has-intro .site-container { display: none; }
   object-fit: cover;
 }
 
-/* soft vignette so the video edges feel cinematic, never a hard box */
-.intro::after {
-  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 1;
-  box-shadow: inset 0 0 220px rgba(0,0,0,.55);
-  background: radial-gradient(120% 120% at 50% 45%, transparent 55%, rgba(0,0,0,.35));
-}
+/* (the cinematic edge treatment is now the canvas-drawn DIAGONAL reveal in intro.js —
+   no circular CSS vignette) */
 
 /* ---- bottom audio player bar ----
    Left group: play/pause + (gallery) prev. Centre: track-name word (gallery only).
@@ -108,20 +104,24 @@ body.has-intro .site-container { display: none; }
 }
 .intro__mute-btn .intro__mute-prompt {
   display: inline-block; white-space: nowrap; overflow: hidden;
-  max-width: 0; opacity: 0; margin-right: 0;
+  max-width: 0; opacity: 0; margin-left: 0; margin-right: 0;
   color: #f3ece2; font-family: 'Roboto Slab', serif;
   font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase;
   /* slow reveal that eases OUT (decelerates) before fully open */
   transition: max-width .8s cubic-bezier(.16,1,.3,1),
+              margin-left .8s cubic-bezier(.16,1,.3,1),
               margin-right .8s cubic-bezier(.16,1,.3,1),
               opacity .5s ease;
 }
-/* only while muted + hovered/focused (it's the unmute affordance): button becomes a pill */
-.intro__mute-btn.is-muted:hover,
-.intro__mute-btn.is-muted:focus-visible { max-width: 260px; }
-.intro__mute-btn.is-muted:hover .intro__mute-prompt,
-.intro__mute-btn.is-muted:focus-visible .intro__mute-prompt {
-  max-width: 200px; opacity: 1; margin-right: 12px;   /* gap between text and the icon */
+/* hovering/focusing the audio button (in EITHER state) opens the pill — its text reads the
+   opposite of the current state ("Turn audio on" when muted, "Turn audio off" when on). */
+.intro__mute-btn:hover,
+.intro__mute-btn:focus-visible { max-width: 280px; }
+.intro__mute-btn:hover .intro__mute-prompt,
+.intro__mute-btn:focus-visible .intro__mute-prompt {
+  max-width: 220px; opacity: 1;
+  margin-left: 10px;     /* extra breathing room before the text on the left */
+  margin-right: 12px;    /* gap between text and the icon */
 }
 .intro.is-landing .intro__mute-prompt { max-width: 0 !important; opacity: 0 !important; }
 
@@ -167,54 +167,37 @@ body.has-intro .site-container { display: none; }
 .intro.is-landing .intro__caption,
 .intro.is-landing .intro__title { opacity: 0 !important; pointer-events: none; transition: opacity .6s ease; }
 
-/* wordmark / title, top-left — also the grid<->montage toggle button.
-   It sits in a heavy-blur "glass" box that is FLUSH to the top-left corner of the screen
-   (no gap), with equal padding wrapping the word so the wordmark lands where it always
-   has. The box has NO colour tint — it's purely a strong blur of whatever art/animation
-   is behind it, with a hairline edge and rounded inner corner. */
+/* ---- single top toggle button ----
+   One control swaps the view: "Play Montage" while the gallery (masonry) is showing,
+   "View Gallery" while the montage plays. It sits in a heavy-blur glass box, top-left on
+   desktop, with EQUAL padding all round the (single-line, centred) label and the glitch
+   flicker. The two labels stack in one grid cell so only the active one shows and the box
+   hugs whichever is current. */
 .intro__title {
   position: absolute; top: 0; left: 0; z-index: 6;
-  color: #f3ece2; font-family: 'Roboto Slab', serif; text-align: left;
-  font-size: clamp(15px, 2.4vw, 22px); font-weight: 300; letter-spacing: 1px;
-  text-shadow: 0 2px 18px rgba(0,0,0,.6);
+  color: #f3ece2; font-family: 'Roboto Slab', serif;
+  font-weight: 300; letter-spacing: 2px; text-transform: uppercase;
   cursor: pointer; border: 0;
-  /* flush to the top-left corner, with EQUAL padding all around the word. The box hugs the
-     brand at rest; on hover it grows just enough for the hint label (min-width below). */
-  padding: 22px;
+  display: grid; place-items: center;      /* label centred H + V */
+  padding: 20px 26px;                      /* equal-feeling padding around the single line */
   background: rgba(0,0,0,.45);
   -webkit-backdrop-filter: blur(22px) saturate(1.05); backdrop-filter: blur(22px) saturate(1.05);
-  transition: opacity .2s ease, transform .1s ease, background .2s ease, min-width .25s ease;
+  transition: transform .1s ease, background .2s ease, opacity .3s ease;
 }
 .intro__title:hover { background: rgba(0,0,0,.55); }
 .intro__title:active { transform: scale(.98); }
-/* the wordmark is just "ARTWORKS" everywhere now (the "1984drum" name is dropped) */
-.intro__title .intro__brand-name { display: none; }
-.intro__title small {
-  display: block; margin: 0;
-  font-size: 13px; opacity: .92; letter-spacing: 2px; text-transform: uppercase; line-height: 1;
-  transition: opacity .2s ease;
+.intro__label {
+  grid-area: 1 / 1;                        /* both labels overlap in the same cell */
+  font-size: 13px; opacity: .95; white-space: nowrap; line-height: 1;
 }
-
-/* on hover the wordmark glitches into an action hint (in the SAME spot as "ARTWORKS"):
-   - in the MONTAGE: GALLERY (opens the grid)
-   - in the GALLERY: PLAY / MONTAGE on two lines (plays a montage)
-   No icons. The hint overlays the brand (absolute), so it never widens the box at rest. */
-.intro__title .intro__hint {
-  position: absolute; left: 22px; top: 22px; z-index: 2;
-  display: flex; align-items: flex-start; justify-content: flex-start;
-  opacity: 0; pointer-events: none; color: #f3ece2;
-}
-.intro__title .intro__hint span {
-  font-size: 13px; letter-spacing: 2px; text-transform: uppercase; opacity: .92;
-  line-height: 1.15; white-space: nowrap;
-}
-.intro__brand { transition: opacity .15s ease; }
-/* which hint shows depends on the mode */
-.intro:not(.is-grid) .intro__title:hover .intro__hint--gallery,
-.intro.is-grid .intro__title:hover .intro__hint--montage {
-  opacity: 1; animation: intro-glitch .5s steps(2) infinite;
-}
-.intro__title:hover .intro__brand { opacity: 0; }
+/* show the label that matches the current mode (montage label while NOT in the grid) */
+.intro__label--gallery { display: none; }
+.intro:not(.is-grid) .intro__label--montage { display: block; }
+.intro:not(.is-grid) .intro__label--gallery { display: none; }
+.intro.is-grid .intro__label--montage { display: none; }
+.intro.is-grid .intro__label--gallery { display: block; }
+/* glitch flicker on the visible label (matches the old hover effect, now always-on) */
+.intro__title .intro__label { animation: intro-glitch 2.6s steps(2) infinite; }
 @keyframes intro-glitch {
   0%   { transform: translate(0,0);   filter: none; }
   20%  { transform: translate(-1.5px,1px); filter: drop-shadow(2px 0 0 rgba(255,0,80,.6)) drop-shadow(-2px 0 0 rgba(0,200,255,.6)); }
@@ -224,82 +207,17 @@ body.has-intro .site-container { display: none; }
   100% { transform: translate(0,0);   filter: none; }
 }
 
-/* ---- persistent top-right Gallery/Montage toggle ----
-   On DESKTOP the wordmark's hover hint already offers this, so the standalone control is
-   hidden there. On MOBILE (no hover) it's an always-visible text link in the top-right
-   corner, mirroring the wordmark's heavy-blur box, flush to the top-right corner. Its
-   label swaps with the mode: "Gallery" in the montage, "Play / Montage" in the gallery. */
-.intro__toggle {
-  position: absolute; top: 0; right: 0; z-index: 6;
-  display: none;                                   /* desktop: hover hint handles it */
-  align-items: center; gap: 8px;
-  color: #f3ece2; font-family: 'Roboto Slab', serif; cursor: pointer; border: 0;
-  padding: 22px;                                   /* equal padding all around, flush to corner */
-  background: rgba(0,0,0,.45);
-  -webkit-backdrop-filter: blur(22px) saturate(1.05); backdrop-filter: blur(22px) saturate(1.05);
-  transition: background .2s ease, transform .1s ease, opacity .3s ease;
-}
-.intro__toggle:active { transform: scale(.97); }
-.intro__toggle svg { width: 20px; height: 20px; fill: currentColor; flex: 0 0 auto; }
-.intro__toggle span > span,
-.intro__toggle-gallery, .intro__toggle-montage { display: inline-flex; align-items: center; gap: 8px; }
-.intro__toggle-gallery span, .intro__toggle-montage span {
-  font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; opacity: .9; white-space: nowrap;
-}
-/* show the right label for the current mode */
-.intro__toggle-montage { display: none; }
-.intro.is-grid .intro__toggle-gallery { display: none; }
-.intro.is-grid .intro__toggle-montage { display: inline-flex; }
-/* ---- mobile: a single top bar all the way across ----
-   On touch screens there's no hover, so the desktop hint is replaced by a persistent
-   control. Rather than two separate corner boxes, the wordmark box stretches edge-to-edge
-   to become ONE bar: "1984drum" on the left, the gallery/montage toggle on the right
-   (the toggle itself goes transparent — the bar provides the shared blurred background).
-   The "Artworks" sub-label is dropped so "1984drum" sits on one line, level with the
-   toggle. The toggle label keeps the glitch flicker the desktop hover hint had. */
+/* ---- mobile: the button becomes a full-width top bar ----
+   centred label, blur box flush to the left, right and top of the screen. */
 @media (max-width: 720px) {
-  /* shared bar padding so the gap left of "ARTWORKS" == the gap right of the toggle */
-  .intro { --introbar-padx: 22px; --introbar-pady: 18px; }
   .intro__title {
-    left: 0; right: 0;                 /* full-width bar */
-    flex-direction: row; align-items: center;
-    display: flex;                     /* row of brand (left) + spacer; toggle overlays right */
-    min-width: 0 !important;           /* never the hover min-width on mobile */
-    padding: var(--introbar-pady) var(--introbar-padx);
-    background: rgba(0,0,0,.225);      /* half the desktop box darkness */
-    border-radius: 0;                  /* square: no filleted top corners */
-    text-shadow: none;                 /* no drop shadow on the bar text */
+    left: 0; right: 0;                       /* full-width, flush both sides + top */
+    padding: 18px;
+    background: rgba(0,0,0,.45);
+    border-radius: 0;
   }
-  .intro__title .intro__hint { display: none; }     /* hover hints unused on mobile */
-  /* mobile shows "ARTWORKS" (the promoted sub-label), not the "1984drum" name */
-  .intro__title .intro__brand { line-height: 1; }   /* tight line-box -> symmetric top/bottom */
-  .intro__title .intro__brand-name { display: none; }
-  .intro__title small {
-    display: block; margin: 0;
-    font-size: 13px; opacity: .92; letter-spacing: 2px; text-transform: uppercase; line-height: 1;
-  }
-
-  .intro__toggle {
-    display: inline-flex; align-items: center;
-    top: 0; bottom: auto;              /* anchored to the top, NOT stretched full-screen */
-    height: var(--introbar-h, 64px);   /* matches the title bar's height (JS sets the var) */
-    background: none;                  /* the title bar provides the shared background */
-    -webkit-backdrop-filter: none; backdrop-filter: none;
-    padding: 0 var(--introbar-padx);   /* right padding == title's left padding; height handles vertical */
-    z-index: 7;                        /* above the title bar */
-  }
-  /* keep the glitch flicker on whichever toggle label is active (no hover on mobile) */
-  .intro__toggle-gallery, .intro__toggle-montage { animation: intro-glitch 2.4s steps(2) infinite; }
+  .intro__label { font-size: 13px; letter-spacing: 2px; }
 }
-/* on the narrowest phones, tighten so the toggle still fits beside "ARTWORKS" */
-@media (max-width: 480px) {
-  .intro { --introbar-padx: 16px; }
-  .intro__toggle { gap: 6px; }
-  .intro__toggle svg { width: 17px; height: 17px; }
-  .intro__toggle-gallery span, .intro__toggle-montage span { font-size: 10.5px; letter-spacing: 1px; }
-}
-/* hide both top controls during the opening landing, like the rest of the chrome */
-.intro.is-landing .intro__toggle { opacity: 0 !important; pointer-events: none; transition: opacity .6s ease; }
 
 /* ---- masonry grid overlay (toggled by the wordmark) ---- */
 .intro__grid {

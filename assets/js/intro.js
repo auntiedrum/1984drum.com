@@ -104,7 +104,7 @@
     } else {
       cctx.fillStyle = '#06100c'; cctx.fillRect(0, 0, W, H);
     }
-    drawFilmOverlay(now);
+    drawFilmOverlay(now, p);   // diagonal reveal sweeps open as the landing clip zooms in
     // once the zoom completes AND the clip has really started, splice into the montage
     if (p >= 1 && ready(landing.media)) {
       landing.active = false;
@@ -231,8 +231,8 @@
     cctx.restore();
   }
 
-  // ---- film grain + vignette overlay (the 70s vibe, drawn over the whole frame) ----
-  var grainTile = null, grainSize = 180, vignetteCache = null, vigKey = '';
+  // ---- film grain overlay (the 70s vibe, drawn over the whole frame) ----
+  var grainTile = null, grainSize = 180;
   function buildGrain() {
     grainTile = document.createElement('canvas');
     grainTile.width = grainSize; grainTile.height = grainSize;
@@ -246,22 +246,55 @@
     }
     g.putImageData(img, 0, 0);
   }
-  function ensureVignette() {
-    var key = W + 'x' + H;
-    if (vigKey === key && vignetteCache) return;
-    vigKey = key;
-    vignetteCache = document.createElement('canvas');
-    vignetteCache.width = W; vignetteCache.height = H;
-    var g = vignetteCache.getContext('2d');
-    var grd = g.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.30, W / 2, H / 2, Math.max(W, H) * 0.72);
-    grd.addColorStop(0, 'rgba(0,0,0,0)');
-    grd.addColorStop(0.7, 'rgba(20,12,4,0.12)');
-    grd.addColorStop(1, 'rgba(15,8,2,0.52)');
-    g.fillStyle = grd; g.fillRect(0, 0, W, H);
+  // ---- diagonal reveal ----
+  // Instead of a circular vignette, two diagonal lines (at DIFFERENT angles) mask the frame:
+  // the band between them is visible, the two outer wedges are darkened. Per piece the lines
+  // start near centre (little revealed) and sweep apart over the dwell (revealing more to each
+  // side), and both lines slowly CHANGE ANGLE while the piece is shown. Fully open near the
+  // end so the whole piece is seen before the cut.
+  // Darken everything on the FAR side of a line. The line passes through a pivot that sits
+  // `gap` px from centre along direction (ux,uy); the wedge filled is the half-plane on that
+  // same outward side. So bigger gap => the dark edge sits further out => more of the piece
+  // shows. `ang` is the line's direction (it tilts the cut); (ux,uy) is the outward unit dir.
+  function darkenOutside(ux, uy, gap, ang, color) {
+    var px = W / 2 + ux * gap, py = H / 2 + uy * gap;     // pivot point on the line
+    var dx = Math.cos(ang), dy = Math.sin(ang);           // line direction
+    var R = Math.hypot(W, H) * 2;                          // covers the canvas comfortably
+    var ax = px + dx * R, ay = py + dy * R;
+    var bx = px - dx * R, by = py - dy * R;
+    cctx.beginPath();
+    cctx.moveTo(ax, ay);
+    cctx.lineTo(bx, by);
+    cctx.lineTo(bx + ux * R, by + uy * R);                // push out along the outward dir
+    cctx.lineTo(ax + ux * R, ay + uy * R);
+    cctx.closePath();
+    cctx.fillStyle = color; cctx.fill();
   }
-  function drawFilmOverlay(now) {
+  function drawDiagonalReveal(now, p) {
+    var op = p * (2 - p);                                  // easeOutQuad 0->1 (decelerates open)
+    var t = now;
+    var reach = Math.hypot(W, H) * 0.55;
+    // two cuts on roughly opposite sides of the frame, each a DIFFERENT tilt that drifts.
+    // outward dirs ~ up-left and down-right, so the visible band runs diagonally.
+    var dirA = 2.50 + 0.25 * Math.sin(t * 0.33);          // ~143deg (up-left), drifting
+    var dirB = dirA + Math.PI + 0.55 + 0.20 * Math.sin(t * 0.27 + 1.1); // opposite-ish, different angle
+    var uAx = Math.cos(dirA), uAy = Math.sin(dirA);
+    var uBx = Math.cos(dirB), uBy = Math.sin(dirB);
+    // the cut LINE direction is perpendicular to the outward dir, plus its own drift so the
+    // angle of the diagonal itself changes while the piece shows.
+    var angA = dirA + Math.PI / 2 + 0.16 * Math.sin(t * 0.5);
+    var angB = dirB + Math.PI / 2 + 0.14 * Math.sin(t * 0.43 + 2.0);
+    // gap grows from a slim opening to fully clear of the frame as the piece reveals
+    var gapA = (0.06 + 0.94 * op) * reach;
+    var gapB = (0.08 + 0.92 * op) * reach;
+    var col = 'rgba(8,5,2,0.94)';
+    cctx.save();
+    darkenOutside(uAx, uAy, gapA, angA, col);
+    darkenOutside(uBx, uBy, gapB, angB, col);
+    cctx.restore();
+  }
+  function drawFilmOverlay(now, p) {
     if (!grainTile) buildGrain();
-    ensureVignette();
     // moving grain — tile it with a per-frame offset so it shimmers like real film
     var ox = ((visRand() * grainSize) | 0), oy = ((visRand() * grainSize) | 0);
     cctx.save();
@@ -273,11 +306,8 @@
       }
     }
     cctx.restore();
-    // vignette
-    cctx.save();
-    cctx.globalAlpha = 1;
-    cctx.drawImage(vignetteCache, 0, 0);
-    cctx.restore();
+    // diagonal reveal mask (replaces the circular vignette). p is the piece's dwell progress.
+    if (typeof p === 'number') drawDiagonalReveal(now, p);
     // subtle whole-frame brightness flicker (warm), like a worn projector lamp
     var flick = 0.04 * Math.sin(now * 4.1) + 0.025 * Math.sin(now * 11.3);
     if (flick > 0) {
@@ -357,8 +387,11 @@
     if (backMedia) drawStaticCover(backMedia);
     // draw the current piece on top, full-frame with its handheld motion
     drawCover(vis.cur, vis.curKB, Math.min(1, (now - vis.curBorn) / KB_SPAN), 1);
-    // the 70s film vibe over everything: grain, vignette, lamp flicker — plus the splice flash
-    drawFilmOverlay(now);
+    // the 70s film vibe over everything: grain, diagonal reveal, lamp flicker — plus the splice
+    // flash. The reveal progress runs over the piece's dwell (clamped just shy of fully-open at
+    // the start so each cut re-closes the diagonals).
+    var revealP = Math.min(1, (now - vis.curBorn) / (SWAP_EVERY * 0.92));
+    drawFilmOverlay(now, revealP);
     drawSplice(now);
     // keep the scrub bar in sync with auto-advance
     if (!scrubbing) setSeekUI(idx / Math.max(1, gallery.length - 1));
@@ -635,9 +668,16 @@
     return name;
   }
 
+  var mutePromptEl = btnMute && btnMute.querySelector('.intro__mute-prompt');
   function refreshPlayerUI() {
     if (btnPlay) { btnPlay.classList.toggle('is-playing', playing); btnPlay.setAttribute('aria-pressed', playing ? 'true' : 'false'); }
-    if (btnMute) { btnMute.classList.toggle('is-muted', muted); btnMute.setAttribute('aria-pressed', muted ? 'true' : 'false'); }
+    if (btnMute) {
+      btnMute.classList.toggle('is-muted', muted); btnMute.setAttribute('aria-pressed', muted ? 'true' : 'false');
+      // the hover pill prompts the OPPOSITE action of the current state
+      var label = muted ? 'Turn audio on' : 'Turn audio off';
+      if (mutePromptEl) mutePromptEl.textContent = label;
+      btnMute.setAttribute('aria-label', label);
+    }
     root.classList.toggle('audio-engaged', engaged);   // CSS reveals play/next/prev once engaged
   }
   // `audioOn` (used by grid-ducking) means "currently audible"
@@ -912,8 +952,8 @@
     freshMontage();                              // come back to a NEW montage
     applyAudioLevel(1.2);                         // un-duck (respects play/mute state)
   }
-  // wordmark: in the MONTAGE it opens the GALLERY (grid); in the GALLERY it returns to /
-  // plays a MONTAGE. Its hover label/icon swap to match (see CSS + the markup spans).
+  // single top button: in the MONTAGE it opens the GALLERY (grid); in the GALLERY it
+  // returns to a MONTAGE. Its label swaps to match (see CSS + the two label spans).
   function toggleGrid(e) {
     if (e) e.stopPropagation();
     if (landing.active) return;                  // ignore during the opening landing
@@ -921,21 +961,7 @@
     else enterGrid();                                     // -> open the gallery
   }
   titleEl.addEventListener('click', toggleGrid);
-  // persistent top-right toggle (visible on mobile; same action as the wordmark hint)
-  var toggleEl = root.querySelector('.intro__toggle');
-  if (toggleEl) toggleEl.addEventListener('click', toggleGrid);
   window.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') { if (root.classList.contains('is-lightbox')) closeLightbox(); else if (gridMode) exitGrid(); }
   });
-
-  // On mobile the wordmark box stretches into a single full-width top bar; the toggle
-  // overlays its right end. Publish the bar's measured height as --introbar-h so the
-  // toggle can match it exactly and centre its label level with "1984drum".
-  function syncBarHeight() {
-    var h = titleEl.getBoundingClientRect().height;
-    if (h > 0) root.style.setProperty('--introbar-h', Math.round(h) + 'px');
-  }
-  syncBarHeight();
-  window.addEventListener('resize', syncBarHeight);
-  window.addEventListener('load', syncBarHeight);
 })();
