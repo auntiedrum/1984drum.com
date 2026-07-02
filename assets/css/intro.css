@@ -263,8 +263,11 @@ body.has-intro .site-container { display: none; }
   display: none; align-items: center; justify-content: center; gap: 8px;
   margin-top: 6px;
 }
-/* reveal the row only in the gallery once the audio graph can act instantly */
-.intro.is-grid.audio-ready .intro__controls { display: flex; }
+/* reveal the control row whenever the gallery is open. The mute button inside it must always
+   be reachable there (it's how the visitor starts/stops sound), so the ROW itself is NOT
+   gated on audio-ready — only the transport that needs an instantly-actable graph
+   (prev/next/progress) waits for audio-ready via their own rules below. */
+.intro.is-grid .intro__controls { display: flex; }
 /* the control buttons are a touch smaller here than the old corner buttons so the whole
    cluster stays compact and centred. Scoped to the GALLERY so the montage's floating corner
    mute button keeps its full 48px size (the row is also laid out in the montage, just to
@@ -374,23 +377,27 @@ body.has-intro .site-container { display: none; }
 .intro.is-grid .intro__bar { z-index: 5; }
 
 /* ---- MONTAGE mode: only the mute button shows, pulled to the bottom-right corner ----
-   All transport lives inside .intro__track (faded to opacity 0 in the montage), so to keep
-   the lone mute/volume control visible + in the corner we (1) force the controls row to lay
-   out even though it's a gallery element, (2) hide every child of it except the vol-wrap,
-   and (3) absolutely anchor the vol-wrap to the bar's bottom-right, lifting its opacity back
-   to 1 out of the faded block. In the gallery none of this applies (the :not(.is-grid) gate),
-   so the control row flows normally between the progress bar and Last Played. */
+   The whole Now-Playing block is hidden in the montage, but the ONE control that must stay
+   live there is the mute/unmute button (it's the only way to start the music). We can't fade
+   the block with `opacity: 0` on .intro__track — CSS opacity composites the whole subtree, so
+   the mute button would fade with it and become invisible (that was the bug). Instead we hide
+   the block's OTHER pieces individually (title button, label, progress, countdown, and every
+   control-row child except the vol-wrap), leave .intro__track fully opaque, and absolutely
+   anchor the vol-wrap to the bar's bottom-right corner. In the gallery none of this applies
+   (the :not(.is-grid) gate), so the control row flows normally. */
 .intro:not(.is-grid) .intro__controls { display: flex; position: static; margin: 0; }
 .intro:not(.is-grid) .intro__controls > *:not(.intro__vol-wrap) { display: none; }
-/* drop .intro__track out of being the offset parent so the absolutely positioned vol-wrap
-   anchors to .intro__bar (the full-width footer), not the centred, faded Now-Playing column.
-   (The tracklist popup that needs .intro__track relative is gallery-only, so making it
-   static in the montage is safe.) */
-.intro:not(.is-grid) .intro__track { opacity: 0; position: static; }
+/* hide the montage block's non-mute pieces WITHOUT fading the parent (so the mute stays lit) */
+.intro:not(.is-grid) .intro__track { opacity: 1; position: static; }
+.intro:not(.is-grid) .intro__track-btn,
+.intro:not(.is-grid) .intro__countdown,
+.intro:not(.is-grid) .intro__tracklist { display: none; }
+/* drop .intro__track out of being the offset parent (made static above) so the absolutely
+   positioned vol-wrap anchors to .intro__bar (the full-width footer), not the centred column. */
 .intro:not(.is-grid) .intro__vol-wrap {
   position: absolute; right: clamp(16px, 4vw, 40px);
   bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-  opacity: 1; pointer-events: auto;   /* float the mute control out of the faded block */
+  pointer-events: auto;   /* float the mute control into the corner */
 }
 .intro:not(.is-grid) .intro__vol-wrap .intro__mute-btn { pointer-events: auto; }
 
