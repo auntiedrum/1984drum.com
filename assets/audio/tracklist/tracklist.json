@@ -1,0 +1,220 @@
+{
+ "tracks": [
+  {
+   "id": "Track_8",
+   "file": "Track_8.mp3",
+   "title": "Track 8",
+   "dur": 59.82,
+   "e": 0.0,
+   "bright": 2468.1,
+   "lufs": -36.0
+  },
+  {
+   "id": "Track_6",
+   "file": "Track_6.mp3",
+   "title": "Track 6",
+   "dur": 59.9,
+   "e": 0.196,
+   "bright": 1891.2,
+   "lufs": -28.7
+  },
+  {
+   "id": "Track_2",
+   "file": "Track_2.mp3",
+   "title": "Track 2",
+   "dur": 60.19,
+   "e": 0.259,
+   "bright": 681.4,
+   "lufs": -27.0
+  },
+  {
+   "id": "Track_1",
+   "file": "Track_1.mp3",
+   "title": "Track 1",
+   "dur": 226.27,
+   "e": 0.348,
+   "bright": 2421.7,
+   "lufs": -24.6
+  },
+  {
+   "id": "Track_9",
+   "file": "Track_9.mp3",
+   "title": "Track 9",
+   "dur": 59.74,
+   "e": 0.396,
+   "bright": 2935.8,
+   "lufs": -23.3
+  },
+  {
+   "id": "Twinkle_Blue_Star",
+   "file": "Twinkle_Blue_Star.mp3",
+   "title": "Twinkle Blue Star",
+   "dur": 129.33,
+   "e": 0.53,
+   "bright": 1382.9,
+   "lufs": -19.7
+  },
+  {
+   "id": "Track_12",
+   "file": "Track_12.mp3",
+   "title": "Track 12",
+   "dur": 59.04,
+   "e": 0.604,
+   "bright": 2653.0,
+   "lufs": -17.7
+  },
+  {
+   "id": "Afrijonzo",
+   "file": "Afrijonzo.mp3",
+   "title": "Afrijonzo",
+   "dur": 120.19,
+   "e": 0.641,
+   "bright": 2315.1,
+   "lufs": -16.7
+  },
+  {
+   "id": "Track_17",
+   "file": "Track_17.mp3",
+   "title": "Track 17",
+   "dur": 50.0,
+   "e": 0.674,
+   "bright": 1036.5,
+   "lufs": -15.8
+  },
+  {
+   "id": "Track_16",
+   "file": "Track_16.mp3",
+   "title": "Track 16",
+   "dur": 50.39,
+   "e": 0.733,
+   "bright": 1853.0,
+   "lufs": -14.2
+  },
+  {
+   "id": "Track_13",
+   "file": "Track_13.mp3",
+   "title": "Track 13",
+   "dur": 58.44,
+   "e": 0.815,
+   "bright": 901.8,
+   "lufs": -12.0
+  },
+  {
+   "id": "Track_19",
+   "file": "Track_19.mp3",
+   "title": "Track 19",
+   "dur": 36.83,
+   "e": 0.911,
+   "bright": 2027.8,
+   "lufs": -9.4
+  },
+  {
+   "id": "Number_8_Colony",
+   "file": "Number_8_Colony.mp3",
+   "title": "Number 8 Colony",
+   "dur": 135.13,
+   "e": 0.974,
+   "bright": 2447.1,
+   "lufs": -7.7
+  },
+  {
+   "id": "Track_7",
+   "file": "Track_7.mp3",
+   "title": "Track 7",
+   "dur": 59.85,
+   "e": 0.852,
+   "bright": 956.8,
+   "lufs": -11.0
+  },
+  {
+   "id": "I_Feel_Free",
+   "file": "I_Feel_Free.mp3",
+   "title": "I Feel Free",
+   "dur": 137.81,
+   "e": 0.774,
+   "bright": 1567.0,
+   "lufs": -13.1
+  },
+  {
+   "id": "Track_10",
+   "file": "Track_10.mp3",
+   "title": "Track 10",
+   "dur": 59.69,
+   "e": 0.711,
+   "bright": 1886.5,
+   "lufs": -14.8
+  },
+  {
+   "id": "Phantom",
+   "file": "Phantom.mp3",
+   "title": "Phantom",
+   "dur": 41.53,
+   "e": 0.648,
+   "bright": 1912.6,
+   "lufs": -16.5
+  },
+  {
+   "id": "Rising_Rain",
+   "file": "Rising_Rain.mp3",
+   "title": "Rising Rain",
+   "dur": 309.13,
+   "e": 0.619,
+   "bright": 1315.8,
+   "lufs": -17.3
+  },
+  {
+   "id": "Track_15",
+   "file": "Track_15.mp3",
+   "title": "Track 15",
+   "dur": 55.38,
+   "e": 0.556,
+   "bright": 1401.0,
+   "lufs": -19.0
+  },
+  {
+   "id": "Track_5",
+   "file": "Track_5.mp3",
+   "title": "Track 5",
+   "dur": 60.03,
+   "e": 0.519,
+   "bright": 2389.3,
+   "lufs": -20.0
+  },
+  {
+   "id": "Track_3",
+   "file": "Track_3.mp3",
+   "title": "Track 3",
+   "dur": 60.08,
+   "e": 0.393,
+   "bright": 1755.0,
+   "lufs": -23.4
+  },
+  {
+   "id": "Track_4",
+   "file": "Track_4.mp3",
+   "title": "Track 4",
+   "dur": 60.03,
+   "e": 0.289,
+   "bright": 668.1,
+   "lufs": -26.2
+  },
+  {
+   "id": "Track_14",
+   "file": "Track_14.mp3",
+   "title": "Track 14",
+   "dur": 56.24,
+   "e": 0.237,
+   "bright": 1580.8,
+   "lufs": -27.6
+  },
+  {
+   "id": "Track_11",
+   "file": "Track_11.mp3",
+   "title": "Track 11",
+   "dur": 59.48,
+   "e": 0.093,
+   "bright": 1732.5,
+   "lufs": -31.5
+  }
+ ]
+}

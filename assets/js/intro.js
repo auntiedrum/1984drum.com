@@ -41,9 +41,18 @@
   var btnPrev = root.querySelector('.intro__prev-btn');
   var btnNext = root.querySelector('.intro__next-btn');
   var trackEl = root.querySelector('.intro__track');
+  var trackBtn = root.querySelector('.intro__track-btn');
+  var trackListEl = root.querySelector('.intro__tracklist');
   // the title sits in a child span so the "Now Playing" label stays put; fall back to the
   // bar itself for older markup without the label/title split.
   var trackTitleEl = root.querySelector('.intro__track-title') || trackEl;
+  var upnextTitleEl = root.querySelector('.intro__upnext-title');
+  var upnextEl = root.querySelector('.intro__upnext');
+  var countdownEl = root.querySelector('.intro__countdown');
+  var volumeEl = root.querySelector('.intro__volume');
+  var volumeTrackEl = root.querySelector('.intro__volume-track');
+  var volumeFillEl = root.querySelector('.intro__volume-fill');
+  var volumeKnobEl = root.querySelector('.intro__volume-knob');
   var seekEl = root.querySelector('.intro__seek');     // optional (may be absent now)
   var seekFill = root.querySelector('.intro__seek-fill');
   var seekKnob = root.querySelector('.intro__seek-knob');
@@ -64,13 +73,20 @@
   var mixRand = rng((seed ^ 0x9e3779b9) >>> 0);
 
   // ---------- manifests ----------
-  var clips = [], gallery = [];   // gallery = ordered explore list (stills + video clips)
+  // TRACKS_BASE holds the full-length tracks + their playlist manifest. The player is now a
+  // playlist of whole tracks (real names from the filenames), NOT the old segmented DJ-blend
+  // of short scraped clips. `clips.json` is still fetched for backwards safety but the audio
+  // engine drives off `tracks` from tracklist.json.
+  var TRACKS_BASE = '/assets/audio/tracklist/';
+  var clips = [], gallery = [], tracks = [];   // gallery = ordered explore list (stills + video clips)
   Promise.all([
-    fetch(BASE + 'clips.json' + VER).then(function (r) { return r.json(); }),
-    fetch(BASE + 'explore.json' + VER).then(function (r) { return r.json(); })
+    fetch(BASE + 'clips.json' + VER).then(function (r) { return r.json(); }).catch(function () { return { clips: [] }; }),
+    fetch(BASE + 'explore.json' + VER).then(function (r) { return r.json(); }),
+    fetch(TRACKS_BASE + 'tracklist.json' + VER).then(function (r) { return r.json(); }).catch(function () { return { tracks: [] }; })
   ]).then(function (res) {
     clips = (res[0].clips || []);
     gallery = (res[1].explore || []);
+    tracks = (res[2].tracks || []);
     initMontageRotation();     // pick one of the 4 pre-made montages for this visit
     setupLanding();
     fitCanvas();
@@ -462,77 +478,56 @@
   }
 
   // ============================================================
-  //  AUDIO — live tape-deck-style looping mix, 5s fade-in on unmute
+  //  AUDIO — playlist of full tracks, short crossfades, 5s fade-in on unmute
   // ============================================================
   var actx = null, master = null, comp = null;
   var seq = [], sources = [], buffers = {};
   var audioStarted = false, audioOn = false;
-  var buffersLoaded = false;   // every clip decoded and ready to schedule instantly
+  var buffersLoaded = false;   // the opening track(s) decoded and ready to play instantly
   var audioReady = false;      // buffers loaded AND the context is actually running
-  var LOOP_TARGET = 560;   // ~9 min loop — long enough to cycle through all the scraped clips
+  var LOOP_TARGET = 560;   // only a fallback for seqDuration() before the playlist loads
   var FADE_IN = 5;         // exactly 5s
   var VOL = 0.85;
+  var GRID_DUCK = 0.18;    // bed volume while the masonry grid is open (ducked under browsing)
   var aT0 = 0, loopTimer = null, clipWatch = null, lastClipIdx = -1;
-  // prev/next must only be offered when audio can act INSTANTLY (buffers decoded + context
-  // running) — otherwise on mobile a tap on a suspended/loading graph does nothing. Reflect
-  // readiness as a class the CSS uses to reveal the arrows, and re-check on a light poll.
+  // prev/next must only be offered when audio can act INSTANTLY (opening buffers decoded +
+  // context running) — otherwise on mobile a tap on a suspended/loading graph does nothing.
+  // Reflect readiness as a class the CSS uses to reveal the arrows, and re-check on a light poll.
   function updateAudioReady() {
     var r = buffersLoaded && !!actx && actx.state === 'running';
-    if (r) beginPlayback();   // first time the graph is live + loaded, start the mix
+    if (r) beginPlayback();   // first time the graph is live + loaded, start the playlist
     if (r !== audioReady) { audioReady = r; root.classList.toggle('audio-ready', audioReady); }
   }
-
-  function eff(b) { while (b > 160) b /= 2; while (b < 80) b *= 2; return b; }
-  function trackOf(id) { return id.replace(/-[a-z]$/, ''); }
-  function cost(a, b) {
-    return Math.abs(eff(a.bpm) - eff(b.bpm)) * 2.2 + Math.abs(a.e - b.e) * 140 + Math.abs(a.bright - b.bright) / 70;
-  }
-  var FEATURE_ID = 'xtwittermfrst';     // the X/Twitter clip — surface it early & in full
+  // Build the PLAYLIST: every full track, played start-to-finish, in the manifest's
+  // energy-arc order (already sorted low->peak->low in tracklist.json), with a short
+  // crossfade at each track boundary. This replaces the old segmented DJ-blend — `seq`
+  // entries are now WHOLE tracks, each with its real name and true duration.
+  var TRACK_XFADE = 2.0;     // seconds of crossfade between consecutive full tracks
   function buildSequence() {
-    var pool = clips.slice();
-    for (var i = pool.length - 1; i > 0; i--) { var j = Math.floor(mixRand() * (i + 1)); var t = pool[i]; pool[i] = pool[j]; pool[j] = t; }
-    function arc(p) { return 0.2 + 0.7 * Math.sin(Math.min(p, 0.9) / 0.9 * Math.PI); }
-    var s = [], used = {}, trackUsed = {}, bbRun = 0;
-    function note(c) { used[c.id] = (used[c.id] || 0) + 1; if (c.backbone) trackUsed[trackOf(c.id)] = (trackUsed[trackOf(c.id)] || 0) + 1; }
-    // START on the X/Twitter clip if present (early & full length), else a low-energy piece
-    var feature = pool.filter(function (c) { return c.id === FEATURE_ID; })[0];
-    var start = feature || pool.reduce(function (m, c) {
-      var mk = (m.backbone ? -1 : 0) + m.e, ck = (c.backbone ? -1 : 0) + c.e;
-      return ck < mk ? c : m;
-    }, pool[0]);
-    s.push(start); note(start); var total = start.dur, sinceBackbone = 0;
-    while (total < LOOP_TARGET) {
-      var last = s[s.length - 1], pos = total / LOOP_TARGET, best = null, bestC = 1e9;
-      bbRun = last.backbone ? bbRun + 1 : 0;
-      sinceBackbone = last.backbone ? 0 : sinceBackbone + 1;
-      for (var k = 0; k < pool.length; k++) {
-        var c = pool[k]; if (c.id === last.id) continue;
-        // Strong reuse penalty so the mix cycles through ALL clips for variety (everything's
-        // short now, ≤30s, so we can balance Pete's tracks and the IG/X clips EVENLY).
-        var penalty = (used[c.id] || 0) * 240;
-        // gently alternate texture <-> backbone so neither clusters (even blend throughout)
-        var typeBias = (last && c.backbone === last.backbone) ? 28 : 0;
-        // don't play two sections of the SAME Pete track close together
-        var sameTrack = c.backbone ? (trackUsed[trackOf(c.id)] || 0) * 24 : 0;
-        if (c.backbone && last.backbone && trackOf(c.id) === trackOf(last.id)) sameTrack += 200;
-        var sc = cost(last, c) * 0.45 + Math.abs(c.e - arc(pos)) * 85 + penalty + typeBias + sameTrack + mixRand() * 16;
-        if (sc < bestC) { bestC = sc; best = c; }
-      }
-      if (!best) break;
-      s.push(best); note(best); total += best.dur;
-    }
+    if (!tracks.length) return [];
+    // fileById keyed for loadBuffer to resolve the exact filename to fetch.
     var out = [], at = 0;
-    for (var n = 0; n < s.length; n++) {
-      var cl = s[n], xf = 0;
-      // smoother, longer crossfades between clips (gentler blends than before)
-      if (n > 0) { var d = Math.abs(eff(s[n - 1].bpm) - eff(cl.bpm)); xf = d < 6 ? 3.0 : d < 14 ? 2.4 : d < 28 ? 1.8 : 1.2; }
-      at -= xf; out.push({ clip: cl, startAt: Math.max(0, at), dur: cl.dur, xfade: xf }); at += cl.dur;
+    for (var n = 0; n < tracks.length; n++) {
+      var tk = tracks[n];
+      // a "clip" shape the rest of the engine already understands: id + dur + title, plus
+      // `file` so loadBuffer fetches the right mp3. No `backbone`/bpm needed anymore.
+      var clip = { id: tk.id, file: tk.file, title: tk.title, dur: tk.dur, e: tk.e, bright: tk.bright };
+      var xf = n > 0 ? TRACK_XFADE : 0;
+      at -= xf;
+      out.push({ clip: clip, startAt: Math.max(0, at), dur: tk.dur, xfade: xf });
+      at += tk.dur;
     }
     return out;
   }
+  // full-track files live in TRACKS_BASE and carry their real filename (spaces->underscores),
+  // so we resolve the URL from the clip's `file`. Keep a fallback to <id>.mp3 for safety.
+  function trackFileFor(id) {
+    for (var i = 0; i < tracks.length; i++) { if (tracks[i].id === id) return tracks[i].file; }
+    return id + '.mp3';
+  }
   function loadBuffer(id) {
     if (buffers[id]) return Promise.resolve(buffers[id]);
-    return fetch(BASE + 'clips/' + id + '.mp3')
+    return fetch(TRACKS_BASE + encodeURIComponent(trackFileFor(id)))
       .then(function (r) { return r.arrayBuffer(); })
       .then(function (ab) { return actx.decodeAudioData(ab); })
       .then(function (buf) { buffers[id] = buf; return buf; });
@@ -547,69 +542,162 @@
     master.connect(comp); comp.connect(actx.destination);
     actx.onstatechange = updateAudioReady;   // running<->suspended flips the arrows on/off
   }
-  function scheduleOnce(when) {
-    seq.forEach(function (s) {
-      var buf = buffers[s.clip.id];
-      if (!buf) return;                       // every buffer is loaded before we ever schedule
-      var src = actx.createBufferSource(); src.buffer = buf;
-      var g = actx.createGain(); src.connect(g); g.connect(master);
-      var st = when + s.startAt, xf = Math.max(0.25, s.xfade);
-      g.gain.setValueAtTime(0.0001, st);
-      g.gain.linearRampToValueAtTime(1, st + xf);
-      var fo = st + s.dur - xf;
-      g.gain.setValueAtTime(1, Math.max(st, fo));
-      g.gain.linearRampToValueAtTime(0.0001, fo + xf);
-      try { src.start(st); } catch (e) {}
-      try { src.stop(st + s.dur + 0.05); } catch (e) {}
-      // prune finished sources so the array doesn't grow forever
-      src.onended = function () { var i = sources.indexOf(src); if (i >= 0) sources.splice(i, 1); };
-      sources.push(src);
-    });
+  // ---- rolling full-track scheduler -----------------------------------------------------
+  // A playlist of full tracks totals ~29 min of audio, so we CANNOT decode everything up front
+  // or start 24 sources at once (the old segmented mix could — each piece was tiny). Instead we
+  // keep a rolling window: schedule only the entries whose start time is within SCHED_AHEAD of
+  // now, lazy-loading each track's buffer just before it's needed. `aT0` is still the ctx time
+  // at which seq entry 0 (startAt 0) begins, so the whole positional model (currentSeqIndex,
+  // countdown, up-next) is unchanged — the loop wraps every seqDuration() seconds.
+  var SCHED_AHEAD = 25;      // seconds of lookahead to have audio queued
+  var scheduledKeys = {};    // "<loopPass>:<seqIndex>" -> true, so we never double-schedule
+  // Schedule seq entry `sIndex` for loop pass starting at `cycleStart`. `offset` (default 0) is
+  // seconds INTO the track to begin from — used for a LATE start when the buffer only finished
+  // decoding after the track's nominal start had already passed, so a slow track begins mid-way
+  // instead of being dropped to full-duration silence.
+  function scheduleEntry(sIndex, cycleStart, offset) {
+    offset = offset || 0;
+    var s = seq[sIndex];
+    var buf = buffers[s.clip.id];
+    if (!buf) return false;                   // not decoded yet — caller will retry next tick
+    // guard the buffer length: never fade/stop past what the decoded buffer actually holds
+    var playDur = Math.min(s.dur, buf.duration) - offset;
+    if (playDur <= 0.05) return true;         // essentially over — nothing worth starting
+    var src = actx.createBufferSource(); src.buffer = buf;
+    var g = actx.createGain(); src.connect(g); g.connect(master);
+    // on-time: start at the nominal clock slot. late: start ~now, from `offset` into the buffer.
+    var st = offset > 0 ? (actx.currentTime + 0.02) : (cycleStart + s.startAt);
+    var xf = Math.max(0.25, s.xfade);
+    g.gain.setValueAtTime(0.0001, st);
+    g.gain.linearRampToValueAtTime(1, st + Math.min(xf, playDur * 0.5));
+    var fo = st + playDur - xf;
+    g.gain.setValueAtTime(1, Math.max(st, fo));
+    g.gain.linearRampToValueAtTime(0.0001, Math.max(st + 0.05, fo + xf));
+    try { src.start(st, offset); } catch (e) {}
+    try { src.stop(st + playDur + 0.05); } catch (e) {}
+    src.onended = function () { var i = sources.indexOf(src); if (i >= 0) sources.splice(i, 1); };
+    sources.push(src);
+    return true;
+  }
+  // How near (in seconds) a track's start must be for us to KEEP its decoded buffer. Anything
+  // outside this window (behind or far ahead) is evictable so memory stays bounded across the
+  // ~29-min loop instead of holding all 24 decoded tracks at once.
+  var KEEP_AHEAD = SCHED_AHEAD + 30, KEEP_BEHIND = 8;
+  // signed seconds from `now` to the nearest upcoming start of seq entry `i` (>=0 ahead).
+  function nearestStartDelta(i, now, dur) {
+    var base = aT0 + seq[i].startAt;
+    var k = Math.ceil((now - base) / dur);
+    var next = base + k * dur;             // first occurrence at/after now
+    var prev = next - dur;                 // the one just behind
+    return { ahead: next - now, behind: now - prev };
+  }
+  function evictFarBuffers() {
+    var now = actx.currentTime, dur = seqDuration();
+    // build the set of ids worth keeping (currently sounding or within the keep window)
+    var keep = {};
+    for (var i = 0; i < seq.length; i++) {
+      var d = nearestStartDelta(i, now, dur);
+      if (d.ahead <= KEEP_AHEAD || d.behind <= (seq[i].dur + KEEP_BEHIND)) keep[seq[i].clip.id] = true;
+    }
+    for (var id in buffers) { if (!keep[id]) delete buffers[id]; }
+  }
+  // preload the buffers for the entries about to enter the scheduling window
+  function preloadAhead(cycleStart) {
+    var now = actx.currentTime, dur = seqDuration();
+    for (var pass = 0; pass < 2; pass++) {
+      var base = cycleStart + pass * dur;
+      for (var i = 0; i < seq.length; i++) {
+        var st = base + seq[i].startAt;
+        if (st < now - 1) continue;
+        if (st - now > SCHED_AHEAD + 20) break;      // far enough ahead; stop for this pass
+        var id = seq[i].clip.id;
+        if (!buffers[id]) loadBuffer(id).catch(function () {});
+      }
+    }
+  }
+  // walk the rolling window, scheduling every entry whose start is within SCHED_AHEAD and whose
+  // buffer is ready. Runs on a light interval AND right after (re)anchoring.
+  function pumpSchedule() {
+    if (!actx || actx.state !== 'running' || !seq.length) return;
+    var now = actx.currentTime, dur = seqDuration();
+    preloadAhead(aT0 + Math.floor((now - aT0) / dur) * dur);
+    // consider the current loop pass and the next one, IN TIME ORDER. If an entry that's due
+    // isn't decoded yet we stop for this tick (don't schedule a later track ahead of a pending
+    // earlier one, which would double up when the earlier buffer finally arrives) — it retries
+    // next tick, in order.
+    var startPass = Math.floor((now - aT0) / dur);
+    outer:
+    for (var pass = startPass; pass <= startPass + 1; pass++) {
+      var cycleStart = aT0 + pass * dur;
+      for (var i = 0; i < seq.length; i++) {
+        var st = cycleStart + seq[i].startAt;
+        var key = pass + ':' + i;
+        if (st < now - 0.05) {
+          // this entry's nominal start has passed. If it was never scheduled (its buffer wasn't
+          // ready in time) but the buffer IS ready now and the track is still mostly unplayed,
+          // start it LATE from the right offset rather than dropping it to silence. Otherwise
+          // mark it done so we stop retrying a genuinely-passed entry.
+          if (!scheduledKeys[key]) {
+            var into = now - st;                      // seconds we're already into this track
+            if (scheduleEntry(i, cycleStart, into)) scheduledKeys[key] = true;
+          }
+          continue;
+        }
+        if (st - now > SCHED_AHEAD) break outer;      // beyond the window for now
+        if (scheduledKeys[key]) continue;
+        if (scheduleEntry(i, cycleStart)) scheduledKeys[key] = true;
+        else break outer;                             // buffer not ready — resume next tick
+      }
+    }
+    // prune stale scheduled keys so the map doesn't grow without bound
+    for (var k in scheduledKeys) {
+      var p = parseInt(k.split(':')[0], 10);
+      if (p < startPass) delete scheduledKeys[k];
+    }
+    evictFarBuffers();       // keep decoded audio bounded across the long loop
   }
   function stopAllSources() {
     sources.forEach(function (s) { try { s.onended = null; s.stop(); } catch (e) {} });
     sources.length = 0;
+    scheduledKeys = {};
   }
   function seqDuration() { if (!seq.length) return LOOP_TARGET; var l = seq[seq.length - 1]; return l.startAt + l.dur; }
-  var schedHorizon = 0;   // ctx time we've scheduled audio up to
   var playbackStarted = false;
   function startAudio() {
     if (audioStarted) return; audioStarted = true;
     ensureCtx();
     seq = buildSequence();
-    var ids = []; seq.forEach(function (s) { if (ids.indexOf(s.clip.id) < 0) ids.push(s.clip.id); });
-    // Load ALL buffers first so no clip is ever silently skipped at schedule time. We do NOT
-    // schedule yet: on mobile the context is SUSPENDED until a gesture and its clock is frozen
-    // at 0, so scheduling now would queue everything at ~0s and it'd be stale/silent by the
-    // time the user unmutes. Instead we wait until the context is actually RUNNING (first
-    // unmute/play) and schedule from the live clock — clean start on every platform.
-    Promise.all(ids.map(function (id) { return loadBuffer(id).catch(function () { return null; }); })).then(function () {
+    if (!seq.length) { buffersLoaded = true; updateAudioReady(); return; }
+    // Lazy: only decode the FIRST track (and the second, for a gapless first boundary) before
+    // declaring ready — the rest stream in via preloadAhead as playback rolls. This keeps the
+    // ~29-min playlist from decoding all at once and lets audioReady fire quickly.
+    var firstIds = [seq[0].clip.id];
+    if (seq[1]) firstIds.push(seq[1].clip.id);
+    Promise.all(firstIds.map(function (id) { return loadBuffer(id).catch(function () { return null; }); })).then(function () {
       buffersLoaded = true;
       updateAudioReady();
       if (actx.state === 'running') beginPlayback();   // desktop: may already be running
     });
   }
-  // schedule the mix from the live clock and keep it extended — runs once, the first time the
-  // context is genuinely running with buffers ready.
+  // start the rolling scheduler from the live clock — runs once, the first time the context is
+  // genuinely running with the opening buffers ready.
   function beginPlayback() {
     if (playbackStarted || !buffersLoaded || !actx || actx.state !== 'running') return;
     playbackStarted = true;
-    var dur = seqDuration();
     var when = actx.currentTime + 0.12; aT0 = when;
-    scheduleOnce(when);              // pass 1
-    scheduleOnce(when + dur);        // pass 2 — already queued so there's never a gap
-    schedHorizon = when + 2 * dur;
-    loopTimer = setInterval(function () {
-      if (!actx) return;
-      while (schedHorizon - actx.currentTime < dur * 1.2) { scheduleOnce(schedHorizon); schedHorizon += dur; }
-    }, 3000);
-    // watch which clip is sounding; keep the "Now Playing" title locked to it.
+    pumpSchedule();                  // queue the opening window now
+    loopTimer = setInterval(pumpSchedule, 1000);
+    // watch which track is sounding; keep the "Now Playing" title locked to it.
     clipWatch = setInterval(function () {
       if (!actx || actx.state !== 'running') return;
+      var dur = seqDuration();
       var p = (actx.currentTime - aT0) % dur; if (p < 0) p += dur;
-      var ci = 0; for (var i = 0; i < seq.length; i++) { if (p >= seq[i].startAt) ci = i; }
-      if (ci !== lastClipIdx) { lastClipIdx = ci; pickWord(seq[ci] && seq[ci].clip); }
+      var ci = seqIndexAt(p);
+      if (ci !== lastClipIdx) { lastClipIdx = ci; pickWord(seq[ci] && seq[ci].clip); updateUpNext(); }
     }, 300);
+    // live countdown to the end of the current track (ticks every second)
+    if (!countdownTimer) countdownTimer = setInterval(tickCountdown, 500);
+    updateUpNext();
   }
   function fadeAudio(target, secs) {
     if (!actx || !master) return;
@@ -619,53 +707,46 @@
     master.gain.linearRampToValueAtTime(Math.max(0.0001, target), now + secs);
   }
   // ---- player ----
-  // The mix is ALWAYS playing under the hood (starts silent on load — no gesture needed
+  // The playlist is ALWAYS playing under the hood (starts silent on load — no gesture needed
   // because it's muted). The user's first UNMUTE fades it in mid-track and reveals the
   // play/pause control. Pause then suspends; play resumes. Next/Prev jump the live audio to
-  // the next/previous clip in the sequence and pick a fresh "track name" word.
+  // the next/previous FULL track in the playlist.
   var playing = true, muted = true, engaged = false;   // engaged = user has unmuted at least once
-  // Curated fall-back names for the scraped IG/X clips, which carry no real title
-  // ("Untitled clip") — so the bar never reads "Untitled". Pete's own tracks keep their
-  // real names (see clipTitle()).
-  var WORDS = ['Greenman', 'Mycelium', 'Spores', 'Empathy', 'Heartwood', 'Communion', 'Petrichor',
-    'Symbiosis', 'Fungi', 'Tendrils', 'Reverie', 'Bloom', 'Lichen', 'Murmuration', 'Wildwood',
-    'Kinship', 'Verdant', 'Moss', 'Resonance', 'Fernlight', 'Solace', 'Canopy', 'Loam', 'Chorus',
-    'Tides', 'Pollen', 'Drift', 'Hollow', 'Gathering', 'Sap', 'Dawnsong', 'Undergrowth'];
 
+  // the DOMINANT (audible) seq entry at loop-position `p`. A track becomes "current" only once
+  // the crossfade INTO it has finished — i.e. at startAt + xfade — so during the 2s overlap the
+  // still-full-volume outgoing track stays current. This keeps the countdown running down to
+  // 0:00 (instead of snapping to the next track ~2s early) and flips Now Playing / Up Next only
+  // when the audio actually changes over. Entry 0 has xfade 0, so the loop-wrap (p≈0) still
+  // selects it correctly.
+  function seqIndexAt(p) {
+    var ci = 0;
+    for (var i = 0; i < seq.length; i++) { if (p >= seq[i].startAt + (seq[i].xfade || 0)) ci = i; }
+    return ci;
+  }
   // which clip is sounding right now -> its sequence entry's clip object (or null)
   function currentClip() {
     if (!actx || !seq.length) return null;
     var dur = seqDuration();
     var p = (actx.currentTime - aT0) % dur; if (p < 0) p += dur;
-    var ci = 0; for (var i = 0; i < seq.length; i++) { if (p >= seq[i].startAt) ci = i; }
-    return seq[ci] ? seq[ci].clip : null;
+    return seq[seqIndexAt(p)] ? seq[seqIndexAt(p)].clip : null;
   }
-  // stable per-clip fall-back word so an "Untitled clip" shows the SAME name each time it
-  // comes round (not a fresh random one every tick) — keyed off its id.
-  function wordForId(id) {
-    var h = 0; for (var i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
-    return WORDS[h % WORDS.length];
-  }
-  // the display title for a clip: a real title becomes the song name with its section
-  // suffix dropped ("Rising Rain (a)" -> "Rising Rain"); untitled scraped clips get their
-  // stable curated word.
+  // the display title for a track: use its real name straight from the manifest. As a
+  // defensive fallback (should a raw id ever reach here), turn the filename stem into a
+  // display name — underscores to spaces, extension dropped — so "Track_8.mp3" -> "Track 8".
   function clipTitle(clip) {
     if (!clip) return '';
     var t = (clip.title || '').trim();
-    if (t && t.toLowerCase() !== 'untitled clip') {
-      return t.replace(/\s*\([a-z]\)\s*$/i, '').trim() || t;
-    }
-    return wordForId(clip.id);
+    if (t) return t;
+    return (clip.id || '').replace(/\.[a-z0-9]+$/i, '').replace(/_/g, ' ').trim();
   }
   var lastTitle = '';
   // refresh the "Now Playing" title. Pass an explicit clip when the caller already knows
-  // which one is about to sound (e.g. skipClip, where the audio clock hasn't advanced to
-  // the freshly-anchored position yet — reading currentClip() there races to the previous
-  // clip). Otherwise read whatever is sounding now. Falls back to a fresh random word only
-  // before the audio graph exists, so the bar is never blank on load.
+  // which track is about to sound (e.g. a jump, where the audio clock hasn't advanced to the
+  // freshly-anchored position yet — reading currentClip() there races to the previous track).
+  // Otherwise read whatever is sounding now.
   function pickWord(clip) {
     var name = clipTitle(clip || currentClip());
-    if (!name) { name = WORDS[Math.floor(visRand() * WORDS.length)]; }
     lastTitle = name;
     if (trackTitleEl) trackTitleEl.textContent = name;
     if (trackEl) trackEl.setAttribute('title', name);
@@ -683,12 +764,192 @@
       btnMute.setAttribute('aria-label', label);
     }
     root.classList.toggle('audio-engaged', engaged);   // CSS reveals play/next/prev once engaged
+    root.classList.toggle('is-muted-state', muted);    // CSS gates the volume slider on unmuted
   }
   // `audioOn` (used by grid-ducking) means "currently audible"
   function applyAudioLevel(secs) {
     audioOn = playing && !muted && !gridMode;
-    fadeAudio(playing && !muted ? VOL : 0.0001, secs);
+    // respect the grid duck: a pause/play or mute toggle WHILE the grid is open must not
+    // un-duck the bed — only exitGrid (which clears gridMode first) restores full volume.
+    var target = (playing && !muted) ? (gridMode ? GRID_DUCK : VOL) : 0.0001;
+    fadeAudio(target, secs);
   }
+
+  // ---- volume (the pop-up slider above the mute button) ----
+  // VOL is the audible level when unmuted; the slider sets it and, if we're currently
+  // audible, re-applies it live (a short fade so drags sound smooth, not zippered).
+  function setVolume(frac, live) {
+    VOL = Math.max(0, Math.min(1, frac));
+    setVolumeUI(VOL);
+    if (live && playing && !muted && !gridMode) fadeAudio(VOL <= 0.0001 ? 0.0001 : VOL, 0.06);
+  }
+  function setVolumeUI(frac) {
+    var pct = Math.round(Math.max(0, Math.min(1, frac)) * 100);
+    if (volumeFillEl) volumeFillEl.style.height = pct + '%';
+    if (volumeKnobEl) volumeKnobEl.style.bottom = pct + '%';
+    if (volumeEl) volumeEl.setAttribute('aria-valuenow', String(pct));
+  }
+  // vertical slider: TOP = loud, BOTTOM = quiet. Fraction from a pointer/touch Y.
+  function volFracFromEvent(e) {
+    if (!volumeTrackEl) return VOL;
+    var r = volumeTrackEl.getBoundingClientRect();
+    var y = (e.touches ? e.touches[0].clientY : e.clientY) - r.top;
+    return Math.max(0, Math.min(1, 1 - y / r.height));
+  }
+  var volDragging = false;
+  function onVolStart(e) {
+    if (muted) return;                 // slider is inert while muted
+    volDragging = true; if (volumeEl) volumeEl.classList.add('is-dragging');
+    setVolume(volFracFromEvent(e), true);
+    e.preventDefault(); e.stopPropagation();
+  }
+  function onVolMove(e) { if (volDragging) { setVolume(volFracFromEvent(e), true); e.preventDefault(); } }
+  function onVolEnd() { if (volDragging) { volDragging = false; if (volumeEl) volumeEl.classList.remove('is-dragging'); } }
+  if (volumeTrackEl) {
+    volumeTrackEl.addEventListener('mousedown', onVolStart);
+    window.addEventListener('mousemove', onVolMove);
+    window.addEventListener('mouseup', onVolEnd);
+    volumeTrackEl.addEventListener('touchstart', onVolStart, { passive: false });
+    window.addEventListener('touchmove', onVolMove, { passive: false });
+    window.addEventListener('touchend', onVolEnd);
+  }
+  setVolumeUI(VOL);
+
+  // ---- mm:ss + up-next + countdown -------------------------------------------------------
+  function fmtTime(secs) {
+    secs = Math.max(0, Math.round(secs));
+    var m = Math.floor(secs / 60), s = secs % 60;
+    return m + ':' + (s < 10 ? '0' : '') + s;
+  }
+  // the sequence entry AFTER the current one whose display title actually differs — so
+  // "Up Next" names a genuinely different track, not the next 3-second cross-fade slice of
+  // the same one.
+  function nextDistinctSeqIndex(from) {
+    if (!seq.length) return -1;
+    var name = clipTitle(seq[((from % seq.length) + seq.length) % seq.length].clip);
+    for (var d = 1; d <= seq.length; d++) {
+      var j = (from + d) % seq.length;
+      if (clipTitle(seq[j].clip) !== name) return j;
+    }
+    return -1;
+  }
+  function updateUpNext() {
+    if (!upnextTitleEl) return;
+    if (!audioReady || !seq.length) { if (upnextEl) upnextEl.classList.remove('has-next'); return; }
+    var ni = nextDistinctSeqIndex(currentSeqIndex());
+    var name = ni >= 0 ? clipTitle(seq[ni].clip) : '';
+    upnextTitleEl.textContent = name;
+    if (upnextEl) upnextEl.classList.toggle('has-next', !!name);
+  }
+  // seconds left in whatever distinct-named track is sounding: sum this entry's remaining
+  // time plus any immediately-following entries that share its title (the cross-fade slices).
+  function secsLeftInTrack() {
+    if (!actx || !seq.length) return 0;
+    var dur = seqDuration();
+    var pos = (actx.currentTime - aT0) % dur; if (pos < 0) pos += dur;
+    var ci = currentSeqIndex();
+    var name = clipTitle(seq[ci].clip);
+    var end = seq[ci].startAt + seq[ci].dur;
+    for (var d = 1; d < seq.length; d++) {
+      var j = ci + d; if (j >= seq.length) break;   // don't wrap the loop boundary
+      if (clipTitle(seq[j].clip) !== name) break;
+      end = seq[j].startAt + seq[j].dur;
+    }
+    return Math.max(0, end - pos);
+  }
+  var countdownTimer = null;
+  function tickCountdown() {
+    if (!countdownEl) return;
+    if (!audioReady || muted || !seq.length) { countdownEl.textContent = ''; return; }
+    countdownEl.textContent = '-' + fmtTime(secsLeftInTrack());
+  }
+
+  // ---- track list (hover on desktop / tap on mobile) -------------------------------------
+  // The mix is one long sequence of cross-faded clip slices; a "track" here is a run of
+  // consecutive entries that share a display title. We build the menu as the ordered list of
+  // those distinct tracks STARTING FROM whatever is playing now, so moving the cursor up the
+  // list moves forward through what's coming — each row jumps the live audio to that track.
+  var TRACKLIST_MAX = 24;   // rows shown (the mix has ~150 slices; keep the menu digestible)
+  function distinctTrackRuns() {
+    var runs = [], n = seq.length;
+    for (var i = 0; i < n; i++) {
+      var name = clipTitle(seq[i].clip);
+      var last = runs[runs.length - 1];
+      if (last && last.name === name) { last.end = seq[i].startAt + seq[i].dur; }
+      else { runs.push({ index: i, name: name, start: seq[i].startAt, end: seq[i].startAt + seq[i].dur }); }
+    }
+    return runs;
+  }
+  var trackListBuilt = false;
+  function buildTrackList() {
+    if (!trackListEl || !seq.length) return;
+    var runs = distinctTrackRuns();
+    if (!runs.length) return;
+    // find the run the playhead is in, and order the menu from there forward (wrapping)
+    var ci = currentSeqIndex(), startRun = 0;
+    for (var r = 0; r < runs.length; r++) { if (ci >= runs[r].index) startRun = r; }
+    trackListEl.innerHTML = '';
+    var count = Math.min(TRACKLIST_MAX, runs.length);
+    // build BOTTOM-UP visually (newest addition on top) so the current track is nearest the
+    // button and upcoming tracks are reached by moving the cursor UP, as asked.
+    for (var k = count - 1; k >= 0; k--) {
+      var run = runs[(startRun + k) % runs.length];
+      var row = document.createElement('button');
+      row.type = 'button'; row.className = 'intro__tracklist-item' + (k === 0 ? ' is-current' : '');
+      row.setAttribute('role', 'menuitem');
+      row.setAttribute('data-seq', String(run.index));
+      var nm = document.createElement('span'); nm.className = 'intro__tracklist-name'; nm.textContent = run.name;
+      var tm = document.createElement('span'); tm.className = 'intro__tracklist-time'; tm.textContent = fmtTime(run.end - run.start);
+      row.appendChild(nm); row.appendChild(tm);
+      trackListEl.appendChild(row);
+    }
+    trackListBuilt = true;
+  }
+  function openTrackList() {
+    if (!trackListEl || !audioReady || !seq.length) return;
+    buildTrackList();               // rebuild each open so it starts from the live playhead
+    root.classList.add('tracklist-open');
+    trackListEl.setAttribute('aria-hidden', 'false');
+    if (trackBtn) trackBtn.setAttribute('aria-expanded', 'true');
+    // open scrolled to the BOTTOM: the current track sits nearest the button and the visitor
+    // moves the cursor UP through the list to reach what's coming (as requested).
+    trackListEl.scrollTop = trackListEl.scrollHeight;
+  }
+  function closeTrackList() {
+    root.classList.remove('tracklist-open');
+    if (trackListEl) trackListEl.setAttribute('aria-hidden', 'true');
+    if (trackBtn) trackBtn.setAttribute('aria-expanded', 'false');
+  }
+  var isTouch = (('ontouchstart' in window) || (navigator.maxTouchPoints > 0));
+  if (trackListEl) {
+    trackListEl.addEventListener('click', function (e) {
+      var item = e.target.closest('.intro__tracklist-item');
+      if (!item) return;
+      e.stopPropagation();
+      var si = parseInt(item.getAttribute('data-seq'), 10);
+      if (!isNaN(si)) jumpToSeqIndex(si);
+      closeTrackList();
+    });
+  }
+  if (trackEl) {
+    // desktop: hover the whole Now-Playing block to reveal the list; leaving hides it.
+    trackEl.addEventListener('mouseenter', function () { if (!isTouch) openTrackList(); });
+    trackEl.addEventListener('mouseleave', function () { if (!isTouch) closeTrackList(); });
+  }
+  if (trackBtn) {
+    // mobile (and click anywhere): tap the title to toggle the slide-up sheet.
+    trackBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (root.classList.contains('tracklist-open')) closeTrackList();
+      else openTrackList();
+    });
+  }
+  // tap/click outside closes the sheet (mainly for the mobile bottom-sheet)
+  document.addEventListener('click', function (e) {
+    if (!root.classList.contains('tracklist-open')) return;
+    if (trackEl && trackEl.contains(e.target)) return;
+    closeTrackList();
+  });
   function resumeCtx() {
     if (actx && actx.state === 'suspended') {
       var p = actx.resume();
@@ -716,33 +977,60 @@
     }
     applyAudioLevel(on ? 0.25 : FADE_IN);        // fade the music IN over FADE_IN on unmute
     refreshPlayerUI();
+    if (on) closeTrackList();                    // muting also dismisses the track sheet
+    tickCountdown();
+    updateUpNext();
   }
-  // jump the live audio to another clip in the sequence (+ a fresh word)
-  function skipClip(dir) {
-    if (!audioReady || !actx || !seq.length) return;   // never act on a not-ready graph
+  // the sequence index sounding right now (0 if not started / not ready)
+  function currentSeqIndex() {
+    if (!actx || !seq.length) return 0;
     var dur = seqDuration();
     var posInLoop = (actx.currentTime - aT0) % dur; if (posInLoop < 0) posInLoop += dur;
-    // which clip are we in?
-    var ci = 0;
-    for (var i = 0; i < seq.length; i++) { if (posInLoop >= seq[i].startAt) ci = i; }
-    ci = ((ci + dir) % seq.length + seq.length) % seq.length;
+    return seqIndexAt(posInLoop);
+  }
+  // re-anchor the live playlist so track `ci` starts "now". The shared core of both the
+  // prev/next arrows and the track-list menu — it stops the sounding sources, moves the
+  // playhead, re-primes the "Now Playing" title, and (since a jumped-to full track may not be
+  // decoded yet) lazy-loads the target buffer first so the jump actually sounds.
+  function anchorAt(ci) {
+    // any anchor supersedes an in-flight async jump: clear pendingJump so a slower load that
+    // was kicked off earlier can't later yank playback away from this, the user's latest choice.
+    pendingJump = -1;
+    ci = ((ci % seq.length) + seq.length) % seq.length;
     var targetOffset = seq[ci].startAt + 0.02;
-    // stop everything currently sounding and re-anchor the schedule so `targetOffset` is "now"
     stopAllSources();
     var when = actx.currentTime + 0.05;
     aT0 = when - targetOffset;
-    scheduleOnce(aT0);
-    scheduleOnce(aT0 + dur);
-    schedHorizon = aT0 + 2 * dur;
     if (actx.state === 'suspended') actx.resume();
     playing = true;
-    // Instant feedback: name it from the TARGET clip (the audio clock hasn't moved yet).
+    pumpSchedule();                // queue the target track (+ what follows) from the new anchor
+    // Instant feedback: name it from the TARGET track (the audio clock hasn't moved yet).
     // Then drop lastClipIdx so the tight clipWatch poll re-confirms against what's REALLY
-    // sounding a beat later — that self-corrects any drift between this index guess and the
-    // re-anchored playhead, so the bar never sticks on a stale title after a skip.
+    // sounding a beat later — self-correcting any drift between this guess and the anchor.
     pickWord(seq[ci].clip);
     lastClipIdx = -1;
     refreshPlayerUI();
+    updateUpNext();
+    tickCountdown();
+  }
+  function jumpToSeqIndex(ci) {
+    if (!audioReady || !actx || !seq.length) return;
+    ci = ((ci % seq.length) + seq.length) % seq.length;
+    var id = seq[ci].clip.id;
+    if (buffers[id]) { anchorAt(ci); return; }
+    // target not decoded yet — hold briefly, load it, then anchor. Mark a pending jump so a
+    // second rapid click supersedes this one rather than double-anchoring.
+    pendingJump = ci;
+    pickWord(seq[ci].clip);          // name it immediately so the bar responds to the click
+    loadBuffer(id).then(function () {
+      if (pendingJump === ci) { pendingJump = -1; anchorAt(ci); }
+    }).catch(function () { if (pendingJump === ci) pendingJump = -1; });
+  }
+  var pendingJump = -1;
+  // jump the live audio to another clip in the sequence (+ a fresh word)
+  function skipClip(dir) {
+    if (!audioReady || !actx || !seq.length) return;   // never act on a not-ready graph
+    jumpToSeqIndex(currentSeqIndex() + dir);
   }
   if (btnPlay) btnPlay.addEventListener('click', function (e) { e.stopPropagation(); setPlaying(!playing); });
   if (btnMute) btnMute.addEventListener('click', function (e) { e.stopPropagation(); setMuted(!muted); });
@@ -771,6 +1059,52 @@
     if (item.video || !u) return u;
     if (/_rw_\d+\.(?:jpe?g|png|webp)$/i.test(u)) return u.replace(/_rw_\d+(\.(?:jpe?g|png|webp))$/i, '_rw_600$1');
     return u.replace(/(\.(?:jpe?g|png|webp))$/i, '_rw_600$1');
+  }
+  // Load the full-res thumb `url` into `imgEl` (currently showing its LQIP) and, once it
+  // decodes, swap + reveal it sharp. Keeps RETRYING on a growing cooldown if the fetch stalls
+  // or fails, so a tile is never left permanently blurred by a dropped/queued request. On the
+  // first genuine 404-style error it falls back to `dispUrl` (the full-size source) once.
+  var hdUpgradeSeq = 0;   // spreads the initial attempts so they don't all fire at once
+  var HD_STALL = 8000;    // if a fetch neither loads nor errors within this, treat it as stalled
+  function upgradeToHD(imgEl, url, dispUrl) {
+    var attempt = 0, triedDisp = false, done = false, settled = false;
+    function finish(src) {
+      done = true;
+      imgEl.src = src;
+      imgEl.classList.remove('is-lqip');
+      imgEl.classList.add('is-loaded');
+    }
+    function retry() {
+      // one retry per attempt: guard so a late onerror + the stall watchdog can't both fire it
+      if (settled || done || !imgEl.isConnected) return;
+      settled = true;
+      attempt++;
+      // cooldown grows with each attempt (2s, 3.5s, 5s … capped at 12s) — back off politely
+      var cooldown = Math.min(12000, 2000 + attempt * 1500);
+      setTimeout(tryLoad, cooldown);
+    }
+    function tryLoad() {
+      if (done || !imgEl.isConnected) return;    // cell removed / already HD -> stop
+      settled = false;
+      var probe = new Image();
+      probe.decoding = 'async';
+      probe.onload = function () { if (!done) finish(probe.src); };
+      probe.onerror = function () {
+        // a genuine error (not just slow): try the full-size source once, then keep retrying
+        if (!triedDisp && dispUrl && probe.src.indexOf(dispUrl) < 0) { triedDisp = true; url = dispUrl; }
+        retry();
+      };
+      probe.src = url;
+      // WATCHDOG: a stalled/queued connection fires neither event — abandon & retry after
+      // HD_STALL. That's the case that used to leave a tile blurred forever.
+      setTimeout(function () {
+        if (done || settled) return;
+        if (!probe.complete || !probe.naturalWidth) { probe.onload = probe.onerror = null; retry(); }
+      }, HD_STALL);
+    }
+    // stagger the FIRST attempt (~40ms apart) so 50+ tiles don't stampede the ~6-connection
+    // pool at build — the pile-up is what stalls fetches and leaves tiles blurred.
+    setTimeout(tryLoad, (hdUpgradeSeq++ % 60) * 40);
   }
   function makeCell(item, level) {
     var cell = document.createElement('div');
@@ -829,11 +1163,13 @@
         // and fades over the placeholder once decoded (falling back to disp if no _rw_600).
         media.classList.add('is-lqip');
         media.src = item.lqip;
-        var full = new Image();
-        full.decoding = 'async';
-        full.onload = function () { media.src = full.src; media.classList.remove('is-lqip'); media.classList.add('is-loaded'); };
-        full.onerror = function () { if (full.src.indexOf(item.disp) < 0) { full.onerror = null; full.src = item.disp; } };
-        full.src = thumb;
+        // COOLDOWN-RETRY upgrade to HD: firing all ~53+ tile fetches at once saturates the
+        // browser's ~6-connection cap; any that stall leave a tile stuck blurred forever (the
+        // old single onload never fired, no retry). Instead each tile keeps trying its full
+        // thumb on a growing cooldown until it decodes, so a stalled/dropped fetch self-heals
+        // into HD rather than staying an LQIP. Stagger the first attempt so they don't all
+        // stampede the connection pool at build time.
+        upgradeToHD(media, thumb, item.disp);
       } else {
         media.src = thumb;
       }
@@ -923,6 +1259,10 @@
       el = document.createElement('img');
       el.src = item.full || item.disp;            // high-res, clean (no film effect)
       el.alt = 'Artwork';
+      // clicking the zoomed IMAGE closes it (back to the grid, same scroll spot). Only for
+      // images — videos/YT embeds keep their own click (play/pause, scrubber, controls).
+      el.style.cursor = 'zoom-out';
+      el.addEventListener('click', function (e) { e.stopPropagation(); closeLightbox(); });
     }
     lightboxStage.appendChild(el);
     root.classList.add('is-lightbox');
@@ -984,7 +1324,7 @@
     if (!gridBuilt) buildGrid();
     root.classList.add('is-grid');
     gridEl.setAttribute('aria-hidden', 'false');
-    if (audioOn) fadeAudio(0.18, 0.6);          // duck the bed while browsing the grid
+    if (audioOn) fadeAudio(GRID_DUCK, 0.6);     // duck the bed while browsing the grid
   }
   function exitGrid() {
     gridMode = false;
