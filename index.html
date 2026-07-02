@@ -14,12 +14,12 @@
         <link rel="apple-touch-icon" href="/assets/img/014472dc-ac3d-4c42-96b3-16a013966c35_carw_1x1x180.png" />
     <link rel="canonical" href="https://1984drum.com/" />
       <title>1984drum - Artworks</title>
-  <link rel="stylesheet" href="/assets/css/fonts.css?v=68" />
-  <link rel="stylesheet" href="/assets/css/main.css?v=68" />
-  <link rel="stylesheet" href="/assets/css/theme.css?v=68" />
-  <link rel="stylesheet" href="/assets/css/app.css?v=68" />
-  <link rel="stylesheet" href="/assets/css/genesis.css?v=68" />
-  <link rel="stylesheet" href="/assets/css/intro.css?v=68" />
+  <link rel="stylesheet" href="/assets/css/fonts.css?v=71" />
+  <link rel="stylesheet" href="/assets/css/main.css?v=71" />
+  <link rel="stylesheet" href="/assets/css/theme.css?v=71" />
+  <link rel="stylesheet" href="/assets/css/app.css?v=71" />
+  <link rel="stylesheet" href="/assets/css/genesis.css?v=71" />
+  <link rel="stylesheet" href="/assets/css/intro.css?v=71" />
 </head>
   <body class="transition-enabled">
   <div id="intro" class="intro" data-base="/assets/tape/" aria-label="Intro — abstract drawing animation">
@@ -28,15 +28,6 @@
     <div class="intro__caption" aria-live="polite"></div>
     <div class="intro__bar">
       <div class="intro__bar-glass" aria-hidden="true"></div>
-      <div class="intro__bar-left">
-        <button class="intro__play-btn" type="button" aria-label="Play / pause audio" aria-pressed="false">
-          <svg class="intro__ico-play" viewBox="0 0 24 24"><path d="M7 5l12 7-12 7z"/></svg>
-          <svg class="intro__ico-pause" viewBox="0 0 24 24"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>
-        </button>
-        <button class="intro__prev-btn" type="button" aria-label="Previous track">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
-        </button>
-      </div>
       <div class="intro__now">
         <span class="intro__upnext" aria-hidden="true">
           <span class="intro__upnext-label">Up Next</span>
@@ -47,27 +38,42 @@
             <span class="intro__track-label">Now Playing</span>
             <span class="intro__track-title"></span>
           </button>
-          <div class="intro__tracklist" role="menu" aria-label="Choose a track" aria-hidden="true"></div>
-        </span>
-        <span class="intro__countdown" aria-hidden="true"></span>
-      </div>
-      <div class="intro__bar-right">
-        <button class="intro__next-btn" type="button" aria-label="Next track">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>
-        </button>
-        <div class="intro__vol-wrap">
-          <div class="intro__volume" aria-hidden="true">
-            <div class="intro__volume-track">
-              <div class="intro__volume-fill"></div>
-              <div class="intro__volume-knob"></div>
+          <!-- controls flank the progress bar: [prev][play] ── progress ── [next][mute+vol] -->
+          <div class="intro__controls">
+            <button class="intro__prev-btn" type="button" aria-label="Previous track">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+            </button>
+            <button class="intro__play-btn" type="button" aria-label="Play / pause audio" aria-pressed="false">
+              <svg class="intro__ico-play" viewBox="0 0 24 24"><path d="M7 5l12 7-12 7z"/></svg>
+              <svg class="intro__ico-pause" viewBox="0 0 24 24"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>
+            </button>
+            <div class="intro__track-progress" aria-label="Seek within track">
+              <div class="intro__track-progress-fill"></div>
+            </div>
+            <button class="intro__next-btn" type="button" aria-label="Next track">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>
+            </button>
+            <div class="intro__vol-wrap">
+              <div class="intro__volume" aria-hidden="true">
+                <div class="intro__volume-track">
+                  <div class="intro__volume-fill"></div>
+                  <div class="intro__volume-knob"></div>
+                </div>
+              </div>
+              <button class="intro__mute-btn" type="button" aria-label="Turn audio on" aria-pressed="false">
+                <span class="intro__mute-prompt">Turn audio on</span>
+                <svg class="intro__ico-unmuted" viewBox="0 0 24 24"><path d="M4 9v6h4l5 5V4L8 9H4z"/><path d="M16 8a5 5 0 0 1 0 8M18.5 6a8 8 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+                <svg class="intro__ico-muted" viewBox="0 0 24 24"><path d="M4 9v6h4l5 5V4L8 9H4z"/><path d="M16 9l5 6M21 9l-5 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+              </button>
             </div>
           </div>
-          <button class="intro__mute-btn" type="button" aria-label="Turn audio on" aria-pressed="false">
-            <span class="intro__mute-prompt">Turn audio on</span>
-            <svg class="intro__ico-unmuted" viewBox="0 0 24 24"><path d="M4 9v6h4l5 5V4L8 9H4z"/><path d="M16 8a5 5 0 0 1 0 8M18.5 6a8 8 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-            <svg class="intro__ico-muted" viewBox="0 0 24 24"><path d="M4 9v6h4l5 5V4L8 9H4z"/><path d="M16 9l5 6M21 9l-5 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-          </button>
-        </div>
+          <span class="intro__countdown" aria-hidden="true"></span>
+          <div class="intro__tracklist" role="menu" aria-label="Choose a track" aria-hidden="true"></div>
+        </span>
+        <span class="intro__lastplayed" aria-hidden="true">
+          <span class="intro__lastplayed-label">Last Played</span>
+          <span class="intro__lastplayed-title"></span>
+        </span>
       </div>
     </div>
     <div class="intro__grid" aria-hidden="true">
@@ -412,7 +418,7 @@ padding-bottom: px;
     </div>
   </div>
 </body>
-  <script src="/assets/js/app.js?v=68"></script>
-  <script src="/assets/js/genesis.js?v=68"></script>
-  <script src="/assets/js/intro.js?v=68"></script>
+  <script src="/assets/js/app.js?v=71"></script>
+  <script src="/assets/js/genesis.js?v=71"></script>
+  <script src="/assets/js/intro.js?v=71"></script>
 </html>

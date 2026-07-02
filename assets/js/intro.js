@@ -48,7 +48,11 @@
   var trackTitleEl = root.querySelector('.intro__track-title') || trackEl;
   var upnextTitleEl = root.querySelector('.intro__upnext-title');
   var upnextEl = root.querySelector('.intro__upnext');
+  var lastplayedEl = root.querySelector('.intro__lastplayed');
+  var lastplayedTitleEl = root.querySelector('.intro__lastplayed-title');
   var countdownEl = root.querySelector('.intro__countdown');
+  var progressEl = root.querySelector('.intro__track-progress');
+  var progressFillEl = root.querySelector('.intro__track-progress-fill');
   var volumeEl = root.querySelector('.intro__volume');
   var volumeTrackEl = root.querySelector('.intro__volume-track');
   var volumeFillEl = root.querySelector('.intro__volume-fill');
@@ -525,12 +529,17 @@
     for (var i = 0; i < tracks.length; i++) { if (tracks[i].id === id) return tracks[i].file; }
     return id + '.mp3';
   }
+  var bufferLoads = {};   // in-flight decodes, so rapid repeat requests share one fetch
   function loadBuffer(id) {
     if (buffers[id]) return Promise.resolve(buffers[id]);
-    return fetch(TRACKS_BASE + encodeURIComponent(trackFileFor(id)))
+    if (bufferLoads[id]) return bufferLoads[id];
+    var p = fetch(TRACKS_BASE + encodeURIComponent(trackFileFor(id)))
       .then(function (r) { return r.arrayBuffer(); })
       .then(function (ab) { return actx.decodeAudioData(ab); })
-      .then(function (buf) { buffers[id] = buf; return buf; });
+      .then(function (buf) { buffers[id] = buf; delete bufferLoads[id]; return buf; })
+      .catch(function (err) { delete bufferLoads[id]; throw err; });
+    bufferLoads[id] = p;
+    return p;
   }
   function ensureCtx() {
     if (actx) return;
@@ -565,11 +574,18 @@
     if (playDur <= 0.05) return true;         // essentially over — nothing worth starting
     var src = actx.createBufferSource(); src.buffer = buf;
     var g = actx.createGain(); src.connect(g); g.connect(master);
+    src._g = g;                               // kept so stopAllSources can de-click via a micro-fade
     // on-time: start at the nominal clock slot. late: start ~now, from `offset` into the buffer.
     var st = offset > 0 ? (actx.currentTime + 0.02) : (cycleStart + s.startAt);
     var xf = Math.max(0.25, s.xfade);
+    // a USER seek/jump must sound immediate — a short fixed fade-in, not the 2s crossfade
+    // ramp (that ramp is right for a genuinely-late track start mid-crossfade, but a scrub
+    // that swells back from silence over 2s reads as broken volume, not seeking). Applies
+    // only to the entry sounding right at the anchor point; the lookahead entries queued in
+    // the same pump keep their normal crossfade ramps.
+    var rampIn = (userSeekRamp && (st - actx.currentTime) < 0.5) ? 0.12 : Math.min(xf, playDur * 0.5);
     g.gain.setValueAtTime(0.0001, st);
-    g.gain.linearRampToValueAtTime(1, st + Math.min(xf, playDur * 0.5));
+    g.gain.linearRampToValueAtTime(1, st + rampIn);
     var fo = st + playDur - xf;
     g.gain.setValueAtTime(1, Math.max(st, fo));
     g.gain.linearRampToValueAtTime(0.0001, Math.max(st + 0.05, fo + xf));
@@ -656,8 +672,23 @@
     }
     evictFarBuffers();       // keep decoded audio bounded across the long loop
   }
+  // flips on around the pumpSchedule() of a user-initiated seek/jump so the incoming track
+  // fades in fast (see scheduleEntry) — always reset synchronously after the pump.
+  var userSeekRamp = false;
   function stopAllSources() {
-    sources.forEach(function (s) { try { s.onended = null; s.stop(); } catch (e) {} });
+    // micro-fade (~30ms) before stopping so a source cut at full gain doesn't click/pop
+    var now = actx ? actx.currentTime : 0;
+    sources.forEach(function (s) {
+      try {
+        s.onended = null;
+        if (s._g && actx) {
+          s._g.gain.cancelScheduledValues(now);
+          s._g.gain.setValueAtTime(s._g.gain.value, now);
+          s._g.gain.linearRampToValueAtTime(0.0001, now + 0.03);
+          s.stop(now + 0.035);
+        } else { s.stop(); }
+      } catch (e) { try { s.stop(); } catch (e2) {} }
+    });
     sources.length = 0;
     scheduledKeys = {};
   }
@@ -733,20 +764,41 @@
   }
   // the display title for a track: use its real name straight from the manifest. As a
   // defensive fallback (should a raw id ever reach here), turn the filename stem into a
-  // display name — underscores to spaces, extension dropped — so "Track_8.mp3" -> "Track 8".
+  // display name — extension dropped, the loudness-normalisation marker "-normalized-16lufs"
+  // (any NNlufs) stripped, underscores to spaces — so "Track_8-normalized-16lufs.mp3" and
+  // "Track_8.mp3" both -> "Track 8".
   function clipTitle(clip) {
     if (!clip) return '';
     var t = (clip.title || '').trim();
     if (t) return t;
-    return (clip.id || '').replace(/\.[a-z0-9]+$/i, '').replace(/_/g, ' ').trim();
+    return (clip.id || '')
+      .replace(/\.[a-z0-9]+$/i, '')
+      .replace(/-normalized-\d+lufs$/i, '')
+      .replace(/_/g, ' ')
+      .trim();
   }
   var lastTitle = '';
+  // "Last Played" (right of Now Playing, the mirror of Up Next): whatever distinct-named
+  // track was actually SOUNDING before the current one. History moves on `audibleTitle`,
+  // which only confirmed changes advance — the optimistic label written while a jump's
+  // buffer is still loading passes silent=true, so a superseded/failed jump can never plant
+  // a track that never played into the readout.
+  var lastPlayedTitle = '', audibleTitle = '';
+  function updateLastPlayed() {
+    if (!lastplayedTitleEl) return;
+    lastplayedTitleEl.textContent = lastPlayedTitle;
+    if (lastplayedEl) lastplayedEl.classList.toggle('has-prev', !!lastPlayedTitle);
+  }
   // refresh the "Now Playing" title. Pass an explicit clip when the caller already knows
   // which track is about to sound (e.g. a jump, where the audio clock hasn't advanced to the
   // freshly-anchored position yet — reading currentClip() there races to the previous track).
-  // Otherwise read whatever is sounding now.
-  function pickWord(clip) {
+  // Otherwise read whatever is sounding now. silent=true updates the label only (no history).
+  function pickWord(clip, silent) {
     var name = clipTitle(clip || currentClip());
+    if (!silent) {
+      if (audibleTitle && name && name !== audibleTitle) { lastPlayedTitle = audibleTitle; updateLastPlayed(); }
+      audibleTitle = name;
+    }
     lastTitle = name;
     if (trackTitleEl) trackTitleEl.textContent = name;
     if (trackEl) trackEl.setAttribute('title', name);
@@ -815,6 +867,80 @@
   }
   setVolumeUI(VOL);
 
+  // ---- now-playing progress bar — scrub within the sounding track ------------------------
+  // The bar spans the current DISTINCT track (the same span the countdown counts down), so
+  // dragging it moves the live playhead backwards/forwards inside that track. Bounds are
+  // captured at drag start so a crossfade mid-drag can't shift the target under the cursor.
+  function currentRunBounds() {
+    var dur = seqDuration();
+    var pos = (actx.currentTime - aT0) % dur; if (pos < 0) pos += dur;
+    var ci = currentSeqIndex();
+    var name = clipTitle(seq[ci].clip);
+    var start = seq[ci].startAt, end = seq[ci].startAt + seq[ci].dur;
+    for (var b = ci - 1; b >= 0; b--) { if (clipTitle(seq[b].clip) !== name) break; start = seq[b].startAt; }
+    for (var d = ci + 1; d < seq.length; d++) { if (clipTitle(seq[d].clip) !== name) break; end = seq[d].startAt + seq[d].dur; }
+    return { start: start, end: end, pos: pos };
+  }
+  function setProgressUI(frac) {
+    if (progressFillEl) progressFillEl.style.width = (Math.max(0, Math.min(1, frac)) * 100) + '%';
+  }
+  function updateTrackProgress() {
+    if (!progressEl || progDragging) return;
+    if (!audioReady || !actx || !seq.length) { setProgressUI(0); return; }
+    var rb = currentRunBounds();
+    var span = rb.end - rb.start;
+    setProgressUI(span > 0 ? (rb.pos - rb.start) / span : 0);
+  }
+  // re-anchor the live playlist to an arbitrary offset inside the given track bounds — the
+  // same move as anchorAt (stop sources, shift aT0, re-pump the scheduler), but landing
+  // mid-track instead of at a track head. pumpSchedule's late-start path picks the entry up
+  // from the right offset, and its buffer is already decoded because the track is sounding.
+  function seekWithinTrack(bounds, frac) {
+    if (!audioReady || !actx || !seq.length) return;
+    pendingJump = -1;
+    var span = Math.max(0, bounds.end - bounds.start);
+    // keep a whisker short of the very end so we never land on a boundary rounding error
+    var target = bounds.start + Math.min(Math.max(0, frac * span), Math.max(0, span - 0.3));
+    stopAllSources();
+    var when = actx.currentTime + 0.05;
+    aT0 = when - target;
+    if (actx.state === 'suspended') actx.resume();
+    playing = true;
+    userSeekRamp = true; pumpSchedule(); userSeekRamp = false;   // fast fade-in at the new spot
+    lastClipIdx = -1;             // clipWatch re-confirms the sounding title a beat later
+    refreshPlayerUI();
+    updateUpNext();
+    tickCountdown();
+  }
+  var progDragging = false, progBounds = null, progFrac = 0;
+  function progFracFromEvent(e) {
+    var r = progressEl.getBoundingClientRect();
+    var x = (e.touches ? e.touches[0].clientX : e.clientX) - r.left;
+    return Math.max(0, Math.min(1, x / r.width));
+  }
+  function onProgStart(e) {
+    if (!audioReady || !actx || !seq.length) return;
+    progDragging = true; progBounds = currentRunBounds();
+    progressEl.classList.add('is-dragging');
+    progFrac = progFracFromEvent(e); setProgressUI(progFrac);
+    e.preventDefault(); e.stopPropagation();
+  }
+  function onProgMove(e) { if (progDragging) { progFrac = progFracFromEvent(e); setProgressUI(progFrac); e.preventDefault(); } }
+  function onProgEnd() {
+    if (!progDragging) return;
+    progDragging = false; progressEl.classList.remove('is-dragging');
+    if (progBounds) seekWithinTrack(progBounds, progFrac);
+    progBounds = null;
+  }
+  if (progressEl) {
+    progressEl.addEventListener('mousedown', onProgStart);
+    window.addEventListener('mousemove', onProgMove);
+    window.addEventListener('mouseup', onProgEnd);
+    progressEl.addEventListener('touchstart', onProgStart, { passive: false });
+    window.addEventListener('touchmove', onProgMove, { passive: false });
+    window.addEventListener('touchend', onProgEnd);
+  }
+
   // ---- mm:ss + up-next + countdown -------------------------------------------------------
   function fmtTime(secs) {
     secs = Math.max(0, Math.round(secs));
@@ -859,9 +985,11 @@
   }
   var countdownTimer = null;
   function tickCountdown() {
-    if (!countdownEl) return;
-    if (!audioReady || muted || !seq.length) { countdownEl.textContent = ''; return; }
-    countdownEl.textContent = '-' + fmtTime(secsLeftInTrack());
+    if (countdownEl) {
+      if (!audioReady || muted || !seq.length) countdownEl.textContent = '';
+      else countdownEl.textContent = '-' + fmtTime(secsLeftInTrack());
+    }
+    updateTrackProgress();     // the progress bar rides the same 500ms tick
   }
 
   // ---- track list (hover on desktop / tap on mobile) -------------------------------------
@@ -907,6 +1035,10 @@
   }
   function openTrackList() {
     if (!trackListEl || !audioReady || !seq.length) return;
+    // gallery only: in the montage the Now-Playing block is invisible (opacity 0) but its
+    // button still hit-tests, so without this guard a cursor sweep across the bottom of the
+    // art could open a fully invisible — yet clickable — list and derail the live audio.
+    if (!root.classList.contains('is-grid')) return;
     buildTrackList();               // rebuild each open so it starts from the live playhead
     root.classList.add('tracklist-open');
     trackListEl.setAttribute('aria-hidden', 'false');
@@ -932,9 +1064,24 @@
     });
   }
   if (trackEl) {
-    // desktop: hover the whole Now-Playing block to reveal the list; leaving hides it.
-    trackEl.addEventListener('mouseenter', function () { if (!isTouch) openTrackList(); });
-    trackEl.addEventListener('mouseleave', function () { if (!isTouch) closeTrackList(); });
+    // desktop: hovering the Now-Playing TITLE opens the list. Closing is FORGIVING: leaving
+    // only schedules a close ~0.4s out, and re-entering anywhere in the block (title, popup,
+    // or the CSS hover-bridge spanning the gap between them) cancels it — so a slow climb up
+    // to the list, or a small overshoot off its edge, never snaps it shut mid-reach.
+    var listCloseTimer = null;
+    if (trackBtn) trackBtn.addEventListener('mouseenter', function () {
+      if (isTouch) return;
+      clearTimeout(listCloseTimer);
+      // already open (e.g. re-crossing the hover bridge) -> leave it be; reopening would
+      // rebuild the list and yank its scroll position
+      if (!root.classList.contains('tracklist-open')) openTrackList();
+    });
+    trackEl.addEventListener('mouseenter', function () { if (!isTouch) clearTimeout(listCloseTimer); });
+    trackEl.addEventListener('mouseleave', function () {
+      if (isTouch) return;
+      clearTimeout(listCloseTimer);
+      listCloseTimer = setTimeout(closeTrackList, 420);
+    });
   }
   if (trackBtn) {
     // mobile (and click anywhere): tap the title to toggle the slide-up sheet.
@@ -1003,7 +1150,8 @@
     aT0 = when - targetOffset;
     if (actx.state === 'suspended') actx.resume();
     playing = true;
-    pumpSchedule();                // queue the target track (+ what follows) from the new anchor
+    // fast fade-in: a user jump should sound at once, not swell in over the 2s crossfade ramp
+    userSeekRamp = true; pumpSchedule(); userSeekRamp = false;
     // Instant feedback: name it from the TARGET track (the audio clock hasn't moved yet).
     // Then drop lastClipIdx so the tight clipWatch poll re-confirms against what's REALLY
     // sounding a beat later — self-correcting any drift between this guess and the anchor.
@@ -1021,7 +1169,7 @@
     // target not decoded yet — hold briefly, load it, then anchor. Mark a pending jump so a
     // second rapid click supersedes this one rather than double-anchoring.
     pendingJump = ci;
-    pickWord(seq[ci].clip);          // name it immediately so the bar responds to the click
+    pickWord(seq[ci].clip, true);    // optimistic label only — history waits for the anchor
     loadBuffer(id).then(function () {
       if (pendingJump === ci) { pendingJump = -1; anchorAt(ci); }
     }).catch(function () { if (pendingJump === ci) pendingJump = -1; });
@@ -1030,7 +1178,10 @@
   // jump the live audio to another clip in the sequence (+ a fresh word)
   function skipClip(dir) {
     if (!audioReady || !actx || !seq.length) return;   // never act on a not-ready graph
-    jumpToSeqIndex(currentSeqIndex() + dir);
+    // step from the PENDING jump target if one is still loading, so rapid Next/Next while a
+    // track decodes advances two tracks, not the same one twice
+    var base = pendingJump >= 0 ? pendingJump : currentSeqIndex();
+    jumpToSeqIndex(base + dir);
   }
   if (btnPlay) btnPlay.addEventListener('click', function (e) { e.stopPropagation(); setPlaying(!playing); });
   if (btnMute) btnMute.addEventListener('click', function (e) { e.stopPropagation(); setMuted(!muted); });
@@ -1239,17 +1390,208 @@
     bar.addEventListener('touchend', function () { dragging = false; });
   }
 
+  // ---- de-chromed YouTube embed (the full drawing time-lapses) --------------------------
+  // The stock embed UI (title bar, avatar, CC/settings, More Videos, logo) reads as "a
+  // YouTube page in a box". Instead: controls=0 + a click-shield over the iframe, with our
+  // own minimal chrome — play/pause veil, slim scrub bar, mute toggle — driven through the
+  // IFrame API. The API script loads lazily on first open; if it never arrives within a few
+  // seconds the iframe falls back to the stock player so the clip is always watchable.
+  var ytApiPromise = null;
+  function loadYTApi() {
+    if (ytApiPromise) return ytApiPromise;
+    ytApiPromise = new Promise(function (resolve) {
+      if (window.YT && window.YT.Player) { resolve(window.YT); return; }
+      var prev = window.onYouTubeIframeAPIReady;
+      window.onYouTubeIframeAPIReady = function () {
+        if (prev) { try { prev(); } catch (e) {} }
+        resolve(window.YT);
+      };
+      var s = document.createElement('script');
+      s.src = 'https://www.youtube.com/iframe_api';
+      s.async = true;
+      // blocked/failed script (ad blocker, offline): resolve null NOW so the embed can drop
+      // straight to the stock player, and forget the promise so a later open can retry
+      s.onerror = function () { ytApiPromise = null; resolve(null); };
+      document.head.appendChild(s);
+    });
+    return ytApiPromise;
+  }
+  function buildYtEmbed(item) {
+    var wrap = document.createElement('div');
+    wrap.className = 'intro__ytwrap';
+    var iframe = document.createElement('iframe');
+    iframe.className = 'intro__yt';
+    // no mute param: the click that opened the lightbox is a user gesture, so unmuted
+    // autoplay is normally allowed. If a browser still blocks it, the play veil stays up and
+    // the visitor's tap starts it (with sound) instead.
+    iframe.src = 'https://www.youtube-nocookie.com/embed/' + item.yt
+      + '?autoplay=1&controls=0&rel=0&iv_load_policy=3&playsinline=1&fs=0&disablekb=1'
+      + '&loop=1&playlist=' + item.yt
+      + '&enablejsapi=1&origin=' + encodeURIComponent(location.origin);
+    iframe.allow = 'autoplay; encrypted-media; picture-in-picture';
+    iframe.setAttribute('allowfullscreen', '');
+    iframe.setAttribute('frameborder', '0');
+    iframe.setAttribute('title', 'Drawing time-lapse');
+    wrap.appendChild(iframe);
+    var shield = document.createElement('div'); shield.className = 'intro__yt-shield'; wrap.appendChild(shield);
+    var mask = document.createElement('div'); mask.className = 'intro__yt-mask is-on'; wrap.appendChild(mask);
+    var cover = document.createElement('div');
+    cover.className = 'intro__yt-cover is-on is-loading';
+    cover.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5l12 7-12 7z"/></svg>';
+    wrap.appendChild(cover);
+    var bar = document.createElement('div'); bar.className = 'intro__yt-bar';
+    var fill = document.createElement('div'); fill.className = 'intro__yt-bar-fill';
+    bar.appendChild(fill); wrap.appendChild(bar);
+    var muteBtn = document.createElement('button');
+    muteBtn.type = 'button'; muteBtn.className = 'intro__yt-mute';
+    muteBtn.setAttribute('aria-label', 'Toggle video sound');
+    muteBtn.innerHTML =
+      '<svg class="intro__yt-ico-on" viewBox="0 0 24 24"><path d="M4 9v6h4l5 5V4L8 9H4z"/><path d="M16 8a5 5 0 0 1 0 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>' +
+      '<svg class="intro__yt-ico-off" viewBox="0 0 24 24"><path d="M4 9v6h4l5 5V4L8 9H4z"/><path d="M16 9l5 6M21 9l-5 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
+    wrap.appendChild(muteBtn);
+
+    var player = null, dead = false, stock = false, playerReady = false;
+    var maskTimer = null, bootTimer = null, barDragging = false;
+    function setCover(on) { cover.classList.toggle('is-on', on); }
+    // the title/channel gradient YouTube flashes at each (re)start fades after ~4s — hold
+    // our own mask over that area for a beat longer, then let it go
+    function flashMask() {
+      mask.classList.add('is-on');
+      clearTimeout(maskTimer);
+      maskTimer = setTimeout(function () { mask.classList.remove('is-on'); }, 4200);
+    }
+    function setMuteUI() {
+      var m = false;
+      try { m = !!(player && player.isMuted && player.isMuted()); } catch (e) {}
+      muteBtn.classList.toggle('is-muted', m);
+    }
+    function ytFrac() {
+      if (!player || !player.getDuration) return 0;
+      var d = 0, t = 0;
+      try { d = player.getDuration() || 0; t = player.getCurrentTime() || 0; } catch (e) {}
+      return d > 0 ? Math.max(0, Math.min(1, t / d)) : 0;
+    }
+    var poll = setInterval(function () {
+      if (!barDragging) fill.style.width = (ytFrac() * 100) + '%';
+      // self-heal the veil: if the video is playing but the cover is still up (e.g. it
+      // started before the API bound, so no PLAYING transition ever reached us), drop it
+      if (player && typeof player.getPlayerState === 'function' && cover.classList.contains('is-on')) {
+        var st = -1; try { st = player.getPlayerState(); } catch (e) {}
+        if (st === 1) { cover.classList.remove('is-loading'); setCover(false); }
+      }
+    }, 250);
+    function seekYt(frac) {
+      if (!player || !player.getDuration) return;
+      var d = 0; try { d = player.getDuration() || 0; } catch (e) {}
+      if (d > 0) { try { player.seekTo(frac * d, true); } catch (e) {} flashMask(); }
+      fill.style.width = (frac * 100) + '%';
+    }
+    function togglePlay() {
+      if (!player || !player.getPlayerState) return;
+      var st = -1; try { st = player.getPlayerState(); } catch (e) {}
+      try { if (st === 1) player.pauseVideo(); else player.playVideo(); } catch (e) {}
+    }
+    shield.addEventListener('click', togglePlay);
+    cover.addEventListener('click', togglePlay);
+    muteBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (!player) return;
+      try { if (player.isMuted()) player.unMute(); else player.mute(); } catch (e2) {}
+      setTimeout(setMuteUI, 60);
+    });
+    function barFrac(e) {
+      var r = bar.getBoundingClientRect();
+      var x = (e.touches ? e.touches[0].clientX : e.clientX) - r.left;
+      return Math.max(0, Math.min(1, x / r.width));
+    }
+    function onBarDown(e) { barDragging = true; seekYt(barFrac(e)); e.stopPropagation(); e.preventDefault(); }
+    function onBarMove(e) { if (barDragging) { seekYt(barFrac(e)); e.preventDefault(); } }
+    function onBarEnd() { barDragging = false; }
+    bar.addEventListener('mousedown', onBarDown);
+    window.addEventListener('mousemove', onBarMove);
+    window.addEventListener('mouseup', onBarEnd);
+    bar.addEventListener('touchstart', onBarDown, { passive: false });
+    window.addEventListener('touchmove', onBarMove, { passive: false });
+    window.addEventListener('touchend', onBarEnd);
+    // if the API never becomes READY (script blocked, or the player handshake dies), revert
+    // to the stock player so the clip is always watchable — our chrome hides via .is-stock.
+    // A fresh iframe is built because player.destroy() may remove the adopted one.
+    function fallbackToStock() {
+      if (dead || stock || playerReady) return;
+      stock = true;
+      if (player && player.destroy) { try { player.destroy(); } catch (e) {} }
+      player = null;
+      if (iframe && iframe.parentNode) iframe.parentNode.removeChild(iframe);
+      iframe = document.createElement('iframe');
+      iframe.className = 'intro__yt';
+      iframe.src = 'https://www.youtube-nocookie.com/embed/' + item.yt + '?autoplay=1&mute=1&rel=0';
+      iframe.allow = 'autoplay; encrypted-media; picture-in-picture';
+      iframe.setAttribute('allowfullscreen', '');
+      iframe.setAttribute('frameborder', '0');
+      iframe.setAttribute('title', 'Drawing time-lapse');
+      wrap.insertBefore(iframe, wrap.firstChild);
+      wrap.classList.add('is-stock');
+    }
+    var apiTimeout = setTimeout(fallbackToStock, 4000);
+    loadYTApi().then(function (YTNS) {
+      if (dead || stock) return;
+      if (!YTNS || !YTNS.Player) { clearTimeout(apiTimeout); fallbackToStock(); return; }
+      // script arrived — give the player handshake its own window before falling back
+      clearTimeout(apiTimeout);
+      apiTimeout = setTimeout(fallbackToStock, 4000);
+      player = new YTNS.Player(iframe, {
+        events: {
+          onReady: function () {
+            if (dead) return;
+            playerReady = true;
+            clearTimeout(apiTimeout);
+            setMuteUI();
+            try { player.playVideo(); } catch (e) {}
+            // the iframe may already be PLAYING (autoplay beat the API handshake, so no
+            // state TRANSITION will ever fire) — sync the veil to the live state now
+            var st = -1; try { st = player.getPlayerState(); } catch (e) {}
+            if (st === 1) { cover.classList.remove('is-loading'); setCover(false); flashMask(); }
+            // if autoplay was blocked the state never reaches "playing": reveal the play
+            // mark on the veil so the visitor knows one tap starts it
+            bootTimer = setTimeout(function () { cover.classList.remove('is-loading'); }, 1600);
+          },
+          onStateChange: function (ev) {
+            if (dead) return;
+            if (ev.data === 1) {                    // playing
+              cover.classList.remove('is-loading');
+              setCover(false); flashMask();
+            } else if (ev.data === 2 || ev.data === -1 || ev.data === 5) {   // paused / unstarted / cued
+              cover.classList.remove('is-loading');
+              setCover(true);
+            } else if (ev.data === 0) {             // ended — loop param should catch this; belt & braces
+              try { player.seekTo(0, true); player.playVideo(); } catch (e) {}
+            }
+            setMuteUI();
+          }
+        }
+      });
+    });
+    wrap._destroy = function () {
+      dead = true;
+      clearInterval(poll); clearTimeout(maskTimer); clearTimeout(bootTimer); clearTimeout(apiTimeout);
+      window.removeEventListener('mousemove', onBarMove);
+      window.removeEventListener('mouseup', onBarEnd);
+      window.removeEventListener('touchmove', onBarMove);
+      window.removeEventListener('touchend', onBarEnd);
+      if (player && player.destroy) { try { player.destroy(); } catch (e) {} }
+      player = null;
+    };
+    return wrap;
+  }
+
   function openLightbox(item) {
+    var prevYt = lightboxStage.querySelector('.intro__ytwrap');
+    if (prevYt && prevYt._destroy) prevYt._destroy();
     lightboxStage.innerHTML = '';
     var el;
     if (item.video && item.yt) {
-      // the full drawing time-lapse, embedded & playing from YouTube
-      el = document.createElement('iframe');
-      el.className = 'intro__yt';
-      el.src = 'https://www.youtube-nocookie.com/embed/' + item.yt + '?autoplay=1&mute=1&rel=0&modestbranding=1';
-      el.allow = 'autoplay; encrypted-media; picture-in-picture';
-      el.setAttribute('allowfullscreen', '');
-      el.setAttribute('frameborder', '0');
+      // the full drawing time-lapse — de-chromed player, feels native to the site
+      el = buildYtEmbed(item);
     } else if (item.video) {
       el = document.createElement('video');
       el.controls = true; el.autoplay = true; el.loop = true; el.playsInline = true;
@@ -1271,7 +1613,9 @@
   function closeLightbox() {
     root.classList.remove('is-lightbox');
     lightboxEl.setAttribute('aria-hidden', 'true');
-    lightboxStage.innerHTML = '';   // also stops the YouTube iframe
+    var yt = lightboxStage.querySelector('.intro__ytwrap');
+    if (yt && yt._destroy) yt._destroy();   // stop the poll + drop the API player cleanly
+    lightboxStage.innerHTML = '';           // also stops any playing media
   }
   lightboxClose.addEventListener('click', function (e) { e.stopPropagation(); closeLightbox(); });
   lightboxEl.addEventListener('click', function (e) { if (e.target === lightboxEl) closeLightbox(); });
@@ -1331,6 +1675,7 @@
     root.classList.remove('is-grid');
     gridEl.setAttribute('aria-hidden', 'true');
     closeLightbox();
+    closeTrackList();   // never leave an invisible open list/sheet floating over the montage
     freshMontage();                              // come back to a NEW montage
     applyAudioLevel(1.2);                         // un-duck (respects play/mute state)
   }

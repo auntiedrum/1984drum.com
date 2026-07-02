@@ -37,12 +37,14 @@ body.has-intro .site-container { display: none; }
 }
 
 /* ---- bottom audio player bar ----
-   Left group: play/pause + (gallery) prev. Centre: track-name word (gallery only).
-   Right group: (gallery) next + mute/unmute. The play button is hidden until the user
-   first unmutes ('audio-engaged'); prev/next + track name only show in the gallery. */
+   ALL controls live in one centred cluster (.intro__now): Up Next on the far left, Last
+   Played on the far right, and between them the Now-Playing title above a control row of
+   [prev][play] — progress bar — [next][mute+vol]. The play button is hidden until the user
+   first unmutes ('audio-engaged'); the controls only show in the gallery. In the montage the
+   lone mute button is pulled back to the bottom-right corner (see the montage rule below). */
 .intro__bar {
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 5;
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex; align-items: center; justify-content: center;
   padding: 16px clamp(16px, 4vw, 40px) calc(16px + env(safe-area-inset-bottom, 0px));
   pointer-events: none;   /* only the buttons catch taps; rest of the bar is pass-through */
 }
@@ -60,7 +62,6 @@ body.has-intro .site-container { display: none; }
 }
 /* montage mode: no footer panel — just the floating mute button on the art */
 .intro:not(.is-grid) .intro__bar-glass { display: none; }
-.intro__bar-left, .intro__bar-right { display: flex; align-items: center; gap: 10px; }
 .intro__play-btn, .intro__mute-btn, .intro__prev-btn, .intro__next-btn {
   pointer-events: auto; flex: 0 0 auto;
   width: 48px; height: 48px; border: 0; border-radius: 50%;
@@ -134,7 +135,11 @@ body.has-intro .site-container { display: none; }
    a fill (from the bottom) and a draggable knob. Only usable once audio is unmuted. */
 .intro__vol-wrap { position: relative; display: flex; align-items: center; }
 .intro__volume {
-  position: absolute; left: 50%; bottom: calc(100% + 12px); transform: translateX(-50%) translateY(8px);
+  /* anchored to the RIGHT end of the wrap, not its centre: the mute pill expands leftwards on
+     hover (icon pinned right), so only the right edge is stable — 24px in = the icon's centre.
+     Centring on the wrap put the slider over the middle of the expanded pill, unreachable
+     without the cursor leaving the button and the popup closing. */
+  position: absolute; right: 24px; bottom: calc(100% + 12px); transform: translateX(50%) translateY(8px);
   z-index: 20; width: 44px; height: 132px;
   display: flex; align-items: center; justify-content: center;
   background: rgba(10,14,12,.92);
@@ -142,13 +147,22 @@ body.has-intro .site-container { display: none; }
   border: 1px solid rgba(255,255,255,.08); border-radius: 22px;
   box-shadow: 0 14px 40px rgba(0,0,0,.5);
   opacity: 0; visibility: hidden; pointer-events: none;
-  transition: opacity .18s ease, transform .18s ease, visibility .18s;
+  /* the .25s delay is a grace period on CLOSE only (the open rule zeroes it): a cursor that
+     slips off for a beat can come back before the popup starts to fade */
+  transition: opacity .18s ease .25s, transform .18s ease .25s, visibility .18s .25s;
+}
+/* invisible slack around the popup, and a bridge across the 12px gap down to the button, so
+   travelling up to the slider (or overshooting it slightly) never drops :hover on the wrap */
+.intro__volume::before {
+  content: ''; position: absolute;
+  top: -16px; left: -18px; right: -18px; bottom: -14px;
 }
 /* pop the slider open when the mute button OR the slider itself is hovered — but only when
    audio is engaged AND not muted (the slider is meaningless while muted). */
 .intro.audio-engaged:not(.is-muted-state) .intro__vol-wrap:hover .intro__volume,
 .intro.audio-engaged:not(.is-muted-state) .intro__volume.is-dragging {
-  opacity: 1; visibility: visible; pointer-events: auto; transform: translateX(-50%) translateY(0);
+  opacity: 1; visibility: visible; pointer-events: auto; transform: translateX(50%) translateY(0);
+  transition-delay: 0s;   /* open instantly — the delay above is grace on close only */
 }
 .intro__volume-track {
   position: relative; width: 6px; height: 104px; border-radius: 3px;
@@ -164,25 +178,28 @@ body.has-intro .site-container { display: none; }
   box-shadow: 0 2px 8px rgba(0,0,0,.5); pointer-events: none;
 }
 
-/* the "Now Playing" block + prev/next arrows appear only in the gallery.
-   The centre now holds three parts on a wide screen: [Up Next] · [Now Playing] · [countdown].
-   .intro__now is the flex child that takes the middle space; it centres the Now-Playing
-   column and floats Up-Next / countdown to its sides only when there's room. */
+/* the "Now Playing" block + all transport controls appear only in the gallery.
+   The centre holds three columns on a wide screen: [Up Next] · [Now Playing] · [Last Played].
+   All three TOP-align so their labels sit on one line and their track-name titles share a
+   baseline (Up Next / Last Played columns are just label+title; the Now-Playing column adds
+   the control row + countdown below its title). */
 .intro__now {
-  flex: 1 1 auto; min-width: 0; margin: 0 12px;
-  display: flex; align-items: center; justify-content: center; gap: clamp(12px, 3vw, 34px);
+  flex: 0 1 auto; min-width: 0; margin: 0 12px;
+  display: flex; align-items: flex-start; justify-content: center; gap: clamp(12px, 3vw, 34px);
   position: relative;
 }
 .intro__track {
   pointer-events: none; color: #f3ece2; opacity: 0;
   min-width: 0;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
   text-align: center; line-height: 1.1;
   transition: opacity .3s ease;
   position: relative;
 }
-/* the Now-Playing title is a real button (opens the track list); strip button chrome */
+/* the Now-Playing title is a real button (opens the track list); strip button chrome.
+   position:relative anchors the hover-bridge pseudo (see the tracklist section). */
 .intro__track-btn {
+  position: relative;
   pointer-events: auto; cursor: pointer; border: 0; background: none; padding: 4px 6px;
   color: inherit; font: inherit; letter-spacing: inherit;
   display: flex; flex-direction: column; align-items: center; gap: 4px;
@@ -190,67 +207,146 @@ body.has-intro .site-container { display: none; }
   transition: background .2s ease;
 }
 .intro__track-btn:hover { background: rgba(255,255,255,.06); }
+/* in the montage the whole Now-Playing block is invisible — make sure its button can't be
+   hit-tested there either (opacity alone doesn't stop clicks/hovers) */
+.intro:not(.is-grid) .intro__track-btn { pointer-events: none; }
 .intro__track-label {
   font-family: 'Roboto Slab', serif; font-size: 9px; letter-spacing: 2.5px;
+  line-height: 12px;                    /* matched across all three columns' labels */
   text-transform: uppercase; opacity: .6; text-shadow: 0 1px 6px rgba(0,0,0,.8);
 }
 .intro__track-title {
   display: block;                       /* own line so the gap below the label is even */
   font-family: 'Roboto Slab', serif; font-size: 14px; letter-spacing: 2px;
+  line-height: 18px;                    /* shared line box (see side titles) -> matched baseline */
   text-transform: uppercase; text-shadow: 0 2px 12px rgba(0,0,0,.8);
   max-width: 42vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
-/* ---- Up Next (left of Now Playing) + countdown (right) — only when the bar is wide ---- */
+/* ---- Up Next (left of Now Playing) + Last Played (right) — only when the bar is wide ----
+   padding-top + gap MATCH the Now-Playing button's (padding:4px 6px; gap:4px) so all three
+   labels sit on one line and the three track-name titles share a baseline. */
 .intro__upnext {
   pointer-events: none; color: #f3ece2; text-align: right; line-height: 1.15;
   display: none; flex-direction: column; align-items: flex-end; max-width: 22vw;
-  opacity: .72;
+  opacity: .72; padding-top: 4px; gap: 4px;
 }
+.intro__lastplayed {
+  pointer-events: none; color: #f3ece2; text-align: left; line-height: 1.15;
+  display: none; flex-direction: column; align-items: flex-start; max-width: 22vw;
+  opacity: .72; padding-top: 4px; gap: 4px;
+}
+/* countdown now sits INSIDE the Now-Playing column, under the track progress bar */
 .intro__countdown {
-  pointer-events: none; color: #f3ece2; opacity: .8;
-  font-family: 'Roboto Slab', serif; font-size: 13px; letter-spacing: 1px;
+  pointer-events: none; color: #f3ece2; opacity: .65;
+  font-family: 'Roboto Slab', serif; font-size: 11px; letter-spacing: 1.2px;
   font-variant-numeric: tabular-nums; text-shadow: 0 2px 12px rgba(0,0,0,.8);
-  display: none; min-width: 5ch; text-align: left;
+  display: none; margin-top: 3px;
 }
-.intro__upnext-label {
+.intro__upnext-label, .intro__lastplayed-label {
   font-family: 'Roboto Slab', serif; font-size: 9px; letter-spacing: 2.5px;
+  line-height: 12px;                    /* same label line box as the Now-Playing label */
   text-transform: uppercase; opacity: .55; text-shadow: 0 1px 6px rgba(0,0,0,.8);
 }
-.intro__upnext-title {
+.intro__upnext-title, .intro__lastplayed-title {
   font-family: 'Roboto Slab', serif; font-size: 12px; letter-spacing: 1.5px;
+  /* SAME line box as the Now-Playing title (same font, same 18px line-height) so the smaller
+     side titles sit on the SAME baseline as the larger Now-Playing title, top-aligned. */
+  line-height: 18px;
   text-transform: uppercase; text-shadow: 0 2px 12px rgba(0,0,0,.8);
   max-width: 22vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+
+/* ---- control row — sits under the Now-Playing title, all transport in one place:
+   [prev][play] ── progress bar ── [next][mute+vol]. Buttons flank the scrub bar. ---- */
+.intro__controls {
+  display: none; align-items: center; justify-content: center; gap: 8px;
+  margin-top: 6px;
+}
+/* reveal the row only in the gallery once the audio graph can act instantly */
+.intro.is-grid.audio-ready .intro__controls { display: flex; }
+/* the control buttons are a touch smaller here than the old corner buttons so the whole
+   cluster stays compact and centred. Scoped to the GALLERY so the montage's floating corner
+   mute button keeps its full 48px size (the row is also laid out in the montage, just to
+   surface that one button). */
+.intro.is-grid .intro__controls .intro__play-btn,
+.intro.is-grid .intro__controls .intro__prev-btn,
+.intro.is-grid .intro__controls .intro__next-btn,
+.intro.is-grid .intro__controls .intro__mute-btn { width: 42px; height: 42px; }
+.intro.is-grid .intro__controls .intro__mute-btn { min-width: 42px; max-width: 42px; border-radius: 21px; }
+.intro.is-grid .intro__controls .intro__play-btn svg,
+.intro.is-grid .intro__controls .intro__mute-btn svg { width: 20px; height: 20px; }
+.intro.is-grid .intro__controls .intro__prev-btn svg,
+.intro.is-grid .intro__controls .intro__next-btn svg { width: 20px; height: 20px; }
+
+/* ---- now-playing progress bar — slim line between the transport buttons (same look as the
+   grid clip bars), draggable to scrub within the sounding track; countdown reads below it ---- */
+.intro__track-progress {
+  display: none; position: relative; pointer-events: auto; cursor: pointer;
+  width: clamp(140px, 15vw, 220px); height: 42px; touch-action: none; flex: 0 0 auto;
+}
+.intro__track-progress::before {
+  content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 3px;
+  transform: translateY(-50%); border-radius: 2px; background: rgba(255,255,255,.22);
+}
+.intro__track-progress-fill {
+  position: absolute; left: 0; top: 50%; height: 3px; width: 0;
+  transform: translateY(-50%); border-radius: 2px; background: #f3ece2;
+}
+/* a small knob at the fill's end, revealed on hover/drag */
+.intro__track-progress-fill::after {
+  content: ''; position: absolute; right: -5px; top: 50%; width: 10px; height: 10px;
+  border-radius: 50%; background: #fff; transform: translateY(-50%) scale(0);
+  box-shadow: 0 1px 6px rgba(0,0,0,.5); transition: transform .15s ease;
+}
+.intro__track-progress:hover .intro__track-progress-fill::after,
+.intro__track-progress.is-dragging .intro__track-progress-fill::after { transform: translateY(-50%) scale(1); }
+
+/* the progress bar is meaningful only once unmuted; the row's buttons still show while muted,
+   so the mute button is reachable — the row just compacts around the hidden bar. */
+.intro.is-grid.audio-ready:not(.is-muted-state) .intro__track-progress { display: block; }
 /* reveal the side info only on wide screens AND when there's a track to show */
 @media (min-width: 860px) {
   .intro.is-grid.audio-ready .intro__upnext.has-next { display: flex; }
+  .intro.is-grid.audio-ready .intro__lastplayed.has-prev { display: flex; }
   .intro.is-grid.audio-ready .intro__countdown { display: block; }
 }
 
 /* ---- track list: desktop hover-popup above the Now-Playing title ---- */
 .intro__tracklist {
   position: absolute; left: 50%; bottom: calc(100% + 14px); transform: translateX(-50%) translateY(8px);
-  z-index: 20; width: max(260px, 26vw); max-height: 46vh; overflow-y: auto;
+  z-index: 20; width: max(250px, 23vw); max-height: min(300px, 34vh); overflow-y: auto;
   background: rgba(10,14,12,.92);
   -webkit-backdrop-filter: blur(22px) saturate(1.05); backdrop-filter: blur(22px) saturate(1.05);
   border: 1px solid rgba(255,255,255,.08); border-radius: 12px;
   box-shadow: 0 18px 60px rgba(0,0,0,.55);
   padding: 6px; pointer-events: none; opacity: 0; visibility: hidden;
   transition: opacity .18s ease, transform .18s ease, visibility .18s;
+  /* slim, unobtrusive scrollbar in the site's bone-white — not the stock browser gutter */
+  scrollbar-width: thin; scrollbar-color: rgba(243,236,226,.35) transparent;
 }
+.intro__tracklist::-webkit-scrollbar { width: 4px; }
+.intro__tracklist::-webkit-scrollbar-track { background: transparent; }
+.intro__tracklist::-webkit-scrollbar-thumb { background: rgba(243,236,226,.3); border-radius: 2px; }
+.intro__tracklist::-webkit-scrollbar-thumb:hover { background: rgba(243,236,226,.5); }
 .intro.tracklist-open .intro__tracklist {
   pointer-events: auto; opacity: 1; visibility: visible; transform: translateX(-50%) translateY(0);
 }
-/* a little arrow tail pointing down at the Now-Playing title */
-.intro__tracklist::after {
-  content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
-  border: 7px solid transparent; border-top-color: rgba(10,14,12,.92);
+/* HOVER BRIDGE (desktop): while the list is open, an invisible strip over the gap between the
+   Now-Playing title and the popup keeps the cursor "inside" on the way up, so a slow or
+   slightly-off climb never drops the hover and closes the list (the JS close is also delayed).
+   Lives on the track BUTTON (a pointer-events:auto element — extending its hit area with a
+   pseudo is reliable everywhere), not the popup: the popup scrolls, so anything absolutely
+   positioned outside it would be clipped by its own overflow. */
+@media (min-width: 721px) {
+  .intro.tracklist-open .intro__track-btn::before {
+    content: ''; position: absolute; left: -34px; right: -34px; top: -22px; height: 26px;
+  }
 }
 .intro__tracklist-item {
   display: flex; align-items: center; justify-content: space-between; gap: 14px; width: 100%;
   border: 0; background: none; cursor: pointer; text-align: left;
-  padding: 10px 12px; border-radius: 8px; color: #e9e2d6;
+  padding: 8px 11px; border-radius: 7px; color: #e9e2d6;
   -webkit-tap-highlight-color: transparent; transition: background .15s ease;
 }
 .intro__tracklist-item:hover { background: rgba(255,255,255,.10); }
@@ -276,6 +372,27 @@ body.has-intro .site-container { display: none; }
 .intro.is-grid .intro__track { opacity: .9; }
 /* in grid view the bar sits above the masonry overlay */
 .intro.is-grid .intro__bar { z-index: 5; }
+
+/* ---- MONTAGE mode: only the mute button shows, pulled to the bottom-right corner ----
+   All transport lives inside .intro__track (faded to opacity 0 in the montage), so to keep
+   the lone mute/volume control visible + in the corner we (1) force the controls row to lay
+   out even though it's a gallery element, (2) hide every child of it except the vol-wrap,
+   and (3) absolutely anchor the vol-wrap to the bar's bottom-right, lifting its opacity back
+   to 1 out of the faded block. In the gallery none of this applies (the :not(.is-grid) gate),
+   so the control row flows normally between the progress bar and Last Played. */
+.intro:not(.is-grid) .intro__controls { display: flex; position: static; margin: 0; }
+.intro:not(.is-grid) .intro__controls > *:not(.intro__vol-wrap) { display: none; }
+/* drop .intro__track out of being the offset parent so the absolutely positioned vol-wrap
+   anchors to .intro__bar (the full-width footer), not the centred, faded Now-Playing column.
+   (The tracklist popup that needs .intro__track relative is gallery-only, so making it
+   static in the montage is safe.) */
+.intro:not(.is-grid) .intro__track { opacity: 0; position: static; }
+.intro:not(.is-grid) .intro__vol-wrap {
+  position: absolute; right: clamp(16px, 4vw, 40px);
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  opacity: 1; pointer-events: auto;   /* float the mute control out of the faded block */
+}
+.intro:not(.is-grid) .intro__vol-wrap .intro__mute-btn { pointer-events: auto; }
 
 /* current-piece caption — centred on screen */
 .intro__caption {
@@ -437,11 +554,72 @@ body.has-intro .site-container { display: none; }
   max-width: 94vw; max-height: 90vh; width: auto; height: auto;
   box-shadow: 0 20px 80px rgba(0,0,0,.6); border-radius: 2px;
 }
-/* YouTube embed of the full drawing time-lapse */
-.intro__lightbox-stage .intro__yt {
-  width: min(90vw, 1280px); height: min(50.6vw, 720px); max-height: 86vh;
-  border: 0; box-shadow: 0 20px 80px rgba(0,0,0,.6); border-radius: 2px;
+/* ---- de-chromed YouTube player (full drawing time-lapses) ----
+   The stock embed UI (title bar, avatar, CC/settings, More Videos, logo) reads as "a YouTube
+   page in a box". Instead the iframe runs with controls=0 under a click-shield, and we draw
+   our own minimal chrome: a play/pause veil, a slim scrub bar (same look as the grid clip
+   bars), a small mute toggle, and a top mask that hides the title flash YouTube shows at
+   each (re)start. All of it inside one clean outline that matches the rest of the site. */
+.intro__ytwrap {
+  position: relative; width: min(90vw, 1280px); aspect-ratio: 16 / 9; max-height: 86vh;
+  background: #000; overflow: hidden; border-radius: 2px;
+  box-shadow: 0 20px 80px rgba(0,0,0,.6);
 }
+.intro__ytwrap .intro__yt { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+/* shield: swallows hover/clicks so the embed never wakes its own chrome; click = play/pause */
+.intro__yt-shield { position: absolute; inset: 0; z-index: 1; cursor: pointer; }
+/* top mask — fades away a few seconds after playback (re)starts */
+.intro__yt-mask {
+  position: absolute; left: 0; right: 0; top: 0; height: 22%; z-index: 2; pointer-events: none;
+  background: linear-gradient(to bottom, rgba(2,6,4,.96), rgba(2,6,4,.7) 55%, transparent);
+  opacity: 0; transition: opacity .5s ease;
+}
+.intro__yt-mask.is-on { opacity: 1; }
+/* pause veil — fully covers the embed's paused-state chrome with our own play mark */
+.intro__yt-cover {
+  position: absolute; inset: 0; z-index: 3; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(4,8,6,.72);
+  opacity: 0; visibility: hidden; transition: opacity .25s ease, visibility .25s;
+}
+.intro__yt-cover.is-on { opacity: 1; visibility: visible; }
+.intro__yt-cover svg {
+  width: 64px; height: 64px; fill: #f3ece2; opacity: .9;
+  filter: drop-shadow(0 4px 18px rgba(0,0,0,.6)); transition: opacity .3s ease;
+}
+.intro__yt-cover.is-loading svg { opacity: 0; }   /* while autoplay is still being attempted */
+/* slim scrub bar — same look as the grid clip bars */
+.intro__yt-bar {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 18px; z-index: 4;
+  cursor: pointer; touch-action: none;
+}
+.intro__yt-bar::before {
+  content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 4px;
+  background: rgba(255,255,255,.28);
+}
+.intro__yt-bar-fill { position: absolute; left: 0; bottom: 0; height: 4px; width: 0; background: #f3ece2; }
+/* small mute toggle, bottom-right, revealed on hover */
+.intro__yt-mute {
+  position: absolute; right: 12px; bottom: 14px; z-index: 5;
+  width: 38px; height: 38px; border: 0; border-radius: 50%;
+  background: rgba(0,0,0,.45); color: #f3ece2; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; transition: opacity .25s ease, background .2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.intro__ytwrap:hover .intro__yt-mute, .intro__yt-mute:focus-visible { opacity: 1; }
+.intro__yt-mute:hover { background: rgba(0,0,0,.7); }
+.intro__yt-mute svg { width: 18px; height: 18px; fill: currentColor; }
+.intro__yt-mute .intro__yt-ico-off { display: none; }
+.intro__yt-mute.is-muted .intro__yt-ico-on { display: none; }
+.intro__yt-mute.is-muted .intro__yt-ico-off { display: block; }
+.intro__yt-mute.is-muted { color: #ff8a8a; }
+/* fallback: if the IFrame API never loads, the iframe reverts to stock controls — hide ours */
+.intro__ytwrap.is-stock .intro__yt-shield,
+.intro__ytwrap.is-stock .intro__yt-mask,
+.intro__ytwrap.is-stock .intro__yt-cover,
+.intro__ytwrap.is-stock .intro__yt-bar,
+.intro__ytwrap.is-stock .intro__yt-mute { display: none; }
 .intro__lightbox-close {
   position: absolute; top: 18px; right: 22px; z-index: 2;
   width: 44px; height: 44px; border: 0; border-radius: 50%;
@@ -462,7 +640,6 @@ body.has-intro .site-container { display: none; }
     box-shadow: 0 -18px 60px rgba(0,0,0,.6);
   }
   .intro.tracklist-open .intro__tracklist { transform: translateY(0); }
-  .intro__tracklist::after { display: none; }   /* no little pointer tail on the sheet */
   /* a grab handle at the top of the sheet */
   .intro__tracklist::before {
     content: ''; display: block; width: 38px; height: 4px; margin: 2px auto 8px;
@@ -476,11 +653,18 @@ body.has-intro .site-container { display: none; }
 
 @media (max-width: 540px) {
   .intro__bar { padding: 14px 12px calc(14px + env(safe-area-inset-bottom, 0px)); }
-  .intro__play-btn, .intro__mute-btn, .intro__prev-btn, .intro__next-btn { width: 48px; height: 48px; }  /* tap targets, but small enough to leave room for the title */
-  .intro__bar-left, .intro__bar-right { gap: 6px; }
-  .intro__now { margin: 0 6px; }   /* keep the title clear of the arrows on narrow screens */
+  /* montage corner mute stays a comfy 48px tap target; gallery cluster buttons too */
+  .intro:not(.is-grid) .intro__mute-btn { width: 48px; height: 48px; min-width: 48px; max-width: 48px; border-radius: 24px; }
+  .intro__controls { gap: 6px; }
+  .intro.is-grid .intro__controls .intro__play-btn,
+  .intro.is-grid .intro__controls .intro__prev-btn,
+  .intro.is-grid .intro__controls .intro__next-btn,
+  .intro.is-grid .intro__controls .intro__mute-btn { width: 44px; height: 44px; }
+  .intro.is-grid .intro__controls .intro__mute-btn { min-width: 44px; max-width: 44px; border-radius: 22px; }
+  .intro__track-progress { width: clamp(90px, 30vw, 160px); height: 44px; }
+  .intro__now { margin: 0 6px; }   /* keep the cluster clear of the screen edges */
   .intro__track-label { font-size: 8px; letter-spacing: 2px; }
-  .intro__track-title { font-size: 12px; letter-spacing: 1.5px; }
+  .intro__track-title { font-size: 12px; letter-spacing: 1.5px; line-height: 16px; }
   .intro__caption { font-size: 11px; }
   .intro__grid { padding: 72px 12px 32px; }
 }
