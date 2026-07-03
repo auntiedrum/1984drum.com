@@ -226,7 +226,7 @@ body.has-intro .site-container { display: none; }
    the control row + countdown below its title). */
 .intro__now {
   flex: 0 1 auto; min-width: 0; margin: 0 12px;
-  display: flex; align-items: flex-start; justify-content: center; gap: clamp(12px, 3vw, 34px);
+  display: flex; align-items: flex-start; justify-content: center; gap: 28px;   /* FIXED gap (was viewport-clamped) so the cluster never breathes */
   position: relative;
 }
 .intro__track {
@@ -263,18 +263,26 @@ body.has-intro .site-container { display: none; }
   text-transform: uppercase; text-shadow: 0 2px 12px rgba(0,0,0,.8);
   max-width: 42vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+/* GALLERY: fixed-width Now-Playing title so a long/short track name doesn't resize the centre
+   column (the whole cluster stays a constant width). Ellipsises within the box. */
+.intro.is-grid .intro__track-title { width: 200px; max-width: 200px; text-align: center; }
 
 /* ---- Up Next (left of Now Playing) + Last Played (right) — only when the bar is wide ----
    padding-top + gap MATCH the Now-Playing button's (padding:4px 6px; gap:4px) so all three
    labels sit on one line and the three track-name titles share a baseline. */
+/* FIXED-WIDTH side columns so a long or short track name (or an empty one) never widens/narrows
+   the cluster. The title ellipsizes within this box; the column is reserved even before it fills.
+   pointer-events default here is overridden to auto below so the names are clickable. */
 .intro__upnext {
-  pointer-events: none; color: #f3ece2; text-align: right; line-height: 1.15;
-  display: none; flex-direction: column; align-items: flex-end; max-width: 22vw;
+  color: #f3ece2; text-align: right; line-height: 1.15;
+  display: none; flex-direction: column; align-items: flex-end;
+  width: 150px; flex: 0 0 150px;
   opacity: .72; padding-top: 4px; gap: 4px;
 }
 .intro__lastplayed {
-  pointer-events: none; color: #f3ece2; text-align: left; line-height: 1.15;
-  display: none; flex-direction: column; align-items: flex-start; max-width: 22vw;
+  color: #f3ece2; text-align: left; line-height: 1.15;
+  display: none; flex-direction: column; align-items: flex-start;
+  width: 150px; flex: 0 0 150px;
   opacity: .72; padding-top: 4px; gap: 4px;
 }
 /* countdown sits INLINE in the control row, to the RIGHT of the progress bar and centred on it
@@ -297,14 +305,33 @@ body.has-intro .site-container { display: none; }
      side titles sit on the SAME baseline as the larger Now-Playing title, top-aligned. */
   line-height: 18px;
   text-transform: uppercase; text-shadow: 0 2px 12px rgba(0,0,0,.8);
-  max-width: 22vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+/* the Up Next / Last Played track NAMES are clickable — clicking one selects that track and plays
+   it from the start (wired in intro.js). Give them their own hit area + hover affordance. */
+.intro__upnext-title, .intro__lastplayed-title {
+  pointer-events: auto; cursor: pointer; border-radius: 6px; padding: 1px 5px;
+  transition: background .15s ease, opacity .15s ease;
+}
+.intro__upnext-title:hover, .intro__lastplayed-title:hover {
+  background: rgba(255,255,255,.10); opacity: 1;
+}
+/* labels stay non-interactive (only the names are clickable) */
+.intro__upnext-label, .intro__lastplayed-label { pointer-events: none; }
 
 /* ---- control row — sits under the Now-Playing title, all transport in one place:
    [prev][play] ── progress bar ── [next][mute+vol]. Buttons flank the scrub bar. ---- */
 .intro__controls {
   display: none; align-items: center; justify-content: center; gap: 8px;
   margin-top: 6px;
+}
+/* FIXED-WIDTH transport cluster (gallery): the row is locked to ~1/6 of the screen width so the
+   player never resizes as track names change, columns toggle, or the viewport nudges. A min-width
+   floor keeps the four fixed-width buttons + progress from crushing on narrower desktops. The
+   progress bar flexes to absorb all the slack, so only IT changes width — the buttons stay put. */
+.intro.is-grid .intro__controls {
+  width: max(320px, 16.666vw); box-sizing: border-box;
+  justify-content: space-between;
 }
 /* reveal the control row whenever the gallery is open. The mute button inside it must always
    be reachable there (it's how the visitor starts/stops sound), so the ROW itself is NOT
@@ -318,8 +345,14 @@ body.has-intro .site-container { display: none; }
 .intro.is-grid .intro__controls .intro__play-btn,
 .intro.is-grid .intro__controls .intro__prev-btn,
 .intro.is-grid .intro__controls .intro__next-btn,
-.intro.is-grid .intro__controls .intro__mute-btn { width: 42px; height: 42px; }
-.intro.is-grid .intro__controls .intro__mute-btn { min-width: 42px; max-width: 42px; border-radius: 21px; }
+.intro.is-grid .intro__controls .intro__mute-btn {
+  width: 46px; height: 46px; flex: 0 0 46px;   /* fixed size, never grow/shrink */
+}
+.intro.is-grid .intro__controls .intro__mute-btn { min-width: 46px; max-width: 46px; border-radius: 23px; }
+/* the vol-wrap holds the (fixed 46px) mute button; pin it so it never grows/shrinks the row */
+.intro.is-grid .intro__controls .intro__vol-wrap { flex: 0 0 46px; }
+/* the inline countdown reserves a fixed width so it never nudges the row as digits change */
+.intro.is-grid .intro__controls .intro__countdown { flex: 0 0 auto; min-width: 40px; text-align: center; }
 .intro.is-grid .intro__controls .intro__play-btn svg { width: 20px; height: 20px; }
 .intro.is-grid .intro__controls .intro__prev-btn svg,
 .intro.is-grid .intro__controls .intro__next-btn svg { width: 20px; height: 20px; }
@@ -330,8 +363,15 @@ body.has-intro .site-container { display: none; }
    grid clip bars), draggable to scrub within the sounding track; countdown reads below it ---- */
 .intro__track-progress {
   display: none; position: relative; pointer-events: auto; cursor: pointer;
-  /* shortened to leave room for the inline countdown to its right (was up to 220px) */
+  /* In the fixed-width control row the progress bar FLEXES to absorb the slack (see the
+     .intro.is-grid .intro__controls override below), so the buttons stay put and only the bar's
+     width varies. This base width is the fallback where the row isn't the fixed-cluster layout. */
   width: clamp(110px, 12vw, 180px); height: 42px; touch-action: none; flex: 0 0 auto;
+}
+/* inside the fixed gallery cluster: let the bar grow/shrink to fill whatever the buttons +
+   countdown leave, with a small floor so it stays draggable. */
+.intro.is-grid .intro__controls .intro__track-progress {
+  flex: 1 1 auto; width: auto; min-width: 40px;
 }
 .intro__track-progress::before {
   content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 3px;
@@ -355,10 +395,15 @@ body.has-intro .site-container { display: none; }
    the label + [play] + mute. */
 .intro.is-grid.audio-ready.audio-engaged .intro__track-progress,
 .intro.is-grid.audio-ready.audio-engaged .intro__countdown { display: block; }
-/* reveal the side info only on wide screens AND when there's a track to show */
+/* Reveal the side columns on wide screens once audio is engaged — and RESERVE their fixed-width
+   space whether or not they currently name a track, so the cluster stays a constant size (the
+   center never slides as Up Next / Last Played fill in). The title text itself is hidden until
+   there's a name (has-next / has-prev) so an empty column shows just its reserved gap. */
 @media (min-width: 860px) {
-  .intro.is-grid.audio-ready .intro__upnext.has-next { display: flex; }
-  .intro.is-grid.audio-ready .intro__lastplayed.has-prev { display: flex; }
+  .intro.is-grid.audio-ready.audio-engaged .intro__upnext,
+  .intro.is-grid.audio-ready.audio-engaged .intro__lastplayed { display: flex; }
+  .intro__upnext:not(.has-next) .intro__upnext-title,
+  .intro__lastplayed:not(.has-prev) .intro__lastplayed-title { visibility: hidden; }
 }
 
 /* ---- track list: desktop hover-popup above the Now-Playing title ---- */
@@ -724,8 +769,9 @@ body.has-intro .site-container { display: none; }
   .intro.is-grid .intro__controls .intro__play-btn,
   .intro.is-grid .intro__controls .intro__prev-btn,
   .intro.is-grid .intro__controls .intro__next-btn,
-  .intro.is-grid .intro__controls .intro__mute-btn { width: 44px; height: 44px; }
+  .intro.is-grid .intro__controls .intro__mute-btn { width: 44px; height: 44px; flex: 0 0 44px; }
   .intro.is-grid .intro__controls .intro__mute-btn { min-width: 44px; max-width: 44px; border-radius: 22px; }
+  .intro.is-grid .intro__controls .intro__vol-wrap { flex: 0 0 44px; }
   /* the gallery mute button is 44px here, so the volume stem must match (44px wide, overlap the
      22px radius) to stay a seamless single lozenge */
   .intro.is-grid .intro__volume { width: 44px; bottom: 22px; border-radius: 22px 22px 0 0; }

@@ -869,6 +869,16 @@
   // buffer is still loading passes silent=true, so a superseded/failed jump can never plant
   // a track that never played into the readout.
   var lastPlayedTitle = '', audibleTitle = '';
+  // seq indices the Up Next / Last Played readouts currently point at, so clicking a name can
+  // jump straight to that track. -1 = nothing to jump to. upNextIdx is set in updateUpNext;
+  // lastPlayedIdx is set when history advances (below) or resolved from the title as a fallback.
+  var upNextIdx = -1, lastPlayedIdx = -1, audibleIdx = -1;
+  // first seq index whose display title matches `name` (fallback when we don't have an index).
+  function seqIndexByTitle(name) {
+    if (!name) return -1;
+    for (var i = 0; i < seq.length; i++) { if (clipTitle(seq[i].clip) === name) return i; }
+    return -1;
+  }
   function updateLastPlayed() {
     if (!lastplayedTitleEl) return;
     lastplayedTitleEl.textContent = lastPlayedTitle;
@@ -879,10 +889,17 @@
   // freshly-anchored position yet — reading currentClip() there races to the previous track).
   // Otherwise read whatever is sounding now. silent=true updates the label only (no history).
   function pickWord(clip, silent) {
-    var name = clipTitle(clip || currentClip());
+    var useClip = clip || currentClip();
+    var name = clipTitle(useClip);
     if (!silent) {
-      if (audibleTitle && name && name !== audibleTitle) { lastPlayedTitle = audibleTitle; updateLastPlayed(); }
+      // when a genuinely new track becomes audible, the OUTGOING one moves into Last Played —
+      // capture BOTH its title and its seq index so the readout can be clicked to replay it.
+      if (audibleTitle && name && name !== audibleTitle) {
+        lastPlayedTitle = audibleTitle; lastPlayedIdx = audibleIdx; updateLastPlayed();
+      }
       audibleTitle = name;
+      // remember which seq index is now audible (prefer the locked jump target / shown index)
+      audibleIdx = (lastClipIdx >= 0 && lastClipIdx < seq.length) ? lastClipIdx : seqIndexByTitle(name);
     }
     lastTitle = name;
     if (trackTitleEl) trackTitleEl.textContent = name;
@@ -1089,9 +1106,10 @@
   // paused, so it pointed at the previous entry and Up Next wrongly showed the current track.)
   function updateUpNext(fromIdx) {
     if (!upnextTitleEl) return;
-    if (!audioReady || !seq.length) { if (upnextEl) upnextEl.classList.remove('has-next'); return; }
+    if (!audioReady || !seq.length) { upNextIdx = -1; if (upnextEl) upnextEl.classList.remove('has-next'); return; }
     var from = (typeof fromIdx === 'number') ? fromIdx : displayedSeqIndex();
     var ni = nextDistinctSeqIndex(from);
+    upNextIdx = ni;                       // remember it so the name can be clicked to jump there
     var name = ni >= 0 ? clipTitle(seq[ni].clip) : '';
     upnextTitleEl.textContent = name;
     if (upnextEl) upnextEl.classList.toggle('has-next', !!name);
@@ -1203,6 +1221,20 @@
       closeTrackList();
     });
   }
+  // Clicking the Up Next or Last Played track NAME selects that track and plays it from the
+  // start (jumpToSeqIndex re-anchors the playlist to that track head). Guarded on audioReady
+  // and a valid stored index so a click on an empty column does nothing.
+  function wireSideClick(el, getIdx) {
+    if (!el) return;
+    el.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (!audioReady) return;
+      var si = getIdx();
+      if (si >= 0 && si < seq.length) jumpToSeqIndex(si);
+    });
+  }
+  wireSideClick(upnextTitleEl, function () { return upNextIdx; });
+  wireSideClick(lastplayedTitleEl, function () { return lastPlayedIdx; });
   if (trackEl) {
     // desktop: hovering the Now-Playing TITLE opens the list. Closing is FORGIVING: leaving
     // only schedules a close ~0.4s out, and re-entering anywhere in the block (title, popup,
