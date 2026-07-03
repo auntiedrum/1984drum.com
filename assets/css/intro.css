@@ -204,6 +204,12 @@ body.has-intro .site-container { display: none; }
    slide-out text pill was removed, so it no longer pins to an edge). The volume stem still grows
    up from the LEFT over the button, so left:0 anchors it. */
 .intro.is-grid .intro__controls .intro__mute-btn { justify-content: center; }
+/* the whole Now-Playing block (.intro__track / .intro__controls) is pointer-events:none so it
+   doesn't swallow clicks on the art; each live control re-enables events on itself. The volume
+   wrap MUST do so too — otherwise :hover on .intro__vol-wrap never fires, the stem never opens,
+   and the gallery volume slider is un-draggable (only the mute button worked, since it sets its
+   own pointer-events:auto). The montage already re-enables the wrap; the gallery needs it too. */
+.intro.is-grid .intro__controls .intro__vol-wrap { pointer-events: auto; }
 .intro.is-grid .intro__volume { left: 0; right: auto; width: 42px; bottom: 21px; border-radius: 21px 21px 0 0; }
 .intro.is-grid .intro__volume::before { left: -8px; right: -8px; bottom: -26px; }
 /* the icon is a touch LARGER in the gallery than the montage (user asked for a bigger red icon).
