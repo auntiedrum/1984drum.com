@@ -489,7 +489,11 @@
   var seq = [], sources = [], buffers = {};
   var audioStarted = false, audioOn = false;
   var buffersLoaded = false;   // the opening track(s) decoded and ready to play instantly
-  var audioReady = false;      // buffers loaded AND the context is actually running
+  var audioReady = false;      // buffers loaded AND the graph has run at least once
+  var audioEverRan = false;    // latch: the context has been 'running' at least once. Once set,
+                               // a user PAUSE (which suspends the context) no longer drops
+                               // audioReady — the transport stays actionable and the readout
+                               // (Up Next / countdown / progress) keeps showing the paused track.
   var LOOP_TARGET = 560;   // only a fallback for seqDuration() before the playlist loads
   var FADE_IN = 5;         // exactly 5s
   var VOL = 0.95;   // SLIDER POSITION (0..1). The audible gain is volGain(VOL), curved below.
@@ -515,8 +519,12 @@
   // context running) — otherwise on mobile a tap on a suspended/loading graph does nothing.
   // Reflect readiness as a class the CSS uses to reveal the arrows, and re-check on a light poll.
   function updateAudioReady() {
-    var r = buffersLoaded && !!actx && actx.state === 'running';
-    if (r) beginPlayback();   // first time the graph is live + loaded, start the playlist
+    var running = !!actx && actx.state === 'running';
+    if (running) { audioEverRan = true; if (buffersLoaded) beginPlayback(); }   // first live+loaded -> start playlist
+    // Ready once buffers are decoded AND the graph has run at least once. A later user PAUSE
+    // suspends the context but must NOT flip audioReady back off — prev/next resume it, and the
+    // paused track's readout (Up Next / countdown / progress) should stay put, not vanish.
+    var r = buffersLoaded && (running || audioEverRan);
     if (r !== audioReady) { audioReady = r; root.classList.toggle('audio-ready', audioReady); }
   }
   // Build the PLAYLIST: every full track, played start-to-finish, in the manifest's
@@ -789,9 +797,14 @@
   function refreshTrackLabel() {
     if (!trackLabelEl) return;
     var audible = engaged && !muted && playing;
-    var label = audible ? 'Now Playing' : (trackChosen ? 'Next Up' : 'Select a Track');
+    // Once the visitor has ENGAGED a track, pausing or muting keeps the full readout: label
+    // reads "Paused", not the minimal pre-start "Next Up". "Next Up" is only for a track that
+    // was chosen but has never actually sounded; "Select a Track" for nothing chosen yet.
+    var label = audible ? 'Now Playing' : (engaged ? 'Paused' : (trackChosen ? 'Next Up' : 'Select a Track'));
     trackLabelEl.textContent = label;
-    // reflect the state on the root so CSS can gate which controls show (see .track-chosen etc.)
+    // reflect the state on the root. `track-chosen` gates the play button (see CSS). The
+    // transport row + Up Next / progress now key off `audio-engaged` instead, so they persist
+    // through a pause/mute; `track-audible` is kept only as an introspectable state flag.
     root.classList.toggle('track-chosen', trackChosen);
     root.classList.toggle('track-audible', audible);
     if (trackBtn) trackBtn.setAttribute('aria-label', audible ? 'Now playing — choose a track' : (trackChosen ? 'Next up — choose a track' : 'Select a track'));
@@ -1027,10 +1040,26 @@
     }
     return -1;
   }
-  function updateUpNext() {
+  // the distinct track BEFORE `from` (mirror of nextDistinctSeqIndex) — for the Prev arrow.
+  function prevDistinctSeqIndex(from) {
+    if (!seq.length) return -1;
+    var name = clipTitle(seq[((from % seq.length) + seq.length) % seq.length].clip);
+    for (var d = 1; d <= seq.length; d++) {
+      var j = ((from - d) % seq.length + seq.length) % seq.length;
+      if (clipTitle(seq[j].clip) !== name) return j;
+    }
+    return -1;
+  }
+  // `fromIdx` (optional): compute "Up Next" as the distinct track AFTER this seq index. Defaults
+  // to displayedSeqIndex() — the track actually shown as Now Playing — so Up Next always names
+  // the track that FOLLOWS what's on screen, never an echo of the current track. (The old
+  // default, currentSeqIndex(), read a hair before the track head right after a jump / while
+  // paused, so it pointed at the previous entry and Up Next wrongly showed the current track.)
+  function updateUpNext(fromIdx) {
     if (!upnextTitleEl) return;
     if (!audioReady || !seq.length) { if (upnextEl) upnextEl.classList.remove('has-next'); return; }
-    var ni = nextDistinctSeqIndex(currentSeqIndex());
+    var from = (typeof fromIdx === 'number') ? fromIdx : displayedSeqIndex();
+    var ni = nextDistinctSeqIndex(from);
     var name = ni >= 0 ? clipTitle(seq[ni].clip) : '';
     upnextTitleEl.textContent = name;
     if (upnextEl) upnextEl.classList.toggle('has-next', !!name);
@@ -1186,6 +1215,8 @@
       setTimeout(function () { if (!playing && actx && actx.state === 'running') actx.suspend(); }, 450);
     }
     refreshPlayerUI();
+    tickCountdown();
+    updateUpNext();     // keep the "Up Next" readout present through a pause/play (never blank)
   }
   function setMuted(on) {
     muted = on;
@@ -1207,6 +1238,15 @@
     var dur = seqDuration();
     var posInLoop = (actx.currentTime - aT0) % dur; if (posInLoop < 0) posInLoop += dur;
     return seqIndexAt(posInLoop);
+  }
+  // the seq index of the track SHOWN as "Now Playing" — the authoritative source for Up Next
+  // and Next/Prev. Prefer lastClipIdx (what anchorAt / clipWatch actually put on screen) over
+  // the raw clock read, because right after a jump — and whenever paused — the audio position
+  // sits a hair BEFORE the track's startAt, so currentSeqIndex() returns the PREVIOUS entry.
+  // Basing Up Next on that stale index is what made it echo the current track's name.
+  function displayedSeqIndex() {
+    if (lastClipIdx >= 0 && lastClipIdx < seq.length) return lastClipIdx;
+    return currentSeqIndex();
   }
   // re-anchor the live playlist so track `ci` starts "now". The shared core of both the
   // prev/next arrows and the track-list menu — it stops the sounding sources, moves the
@@ -1237,7 +1277,7 @@
     clearTimeout(jumpLockTimer);
     jumpLockTimer = setTimeout(function () { jumpLockIdx = -1; }, 3000);
     refreshPlayerUI();
-    updateUpNext();
+    updateUpNext(ci);   // Up Next = the track AFTER the one just chosen (never the choice itself)
     tickCountdown();
   }
   function jumpToSeqIndex(ci) {
@@ -1255,13 +1295,17 @@
     }).catch(function () { if (pendingJump === ci) pendingJump = -1; });
   }
   var pendingJump = -1;
-  // jump the live audio to another clip in the sequence (+ a fresh word)
+  // jump the live audio to the next/previous DISTINCT track (+ a fresh word). dir: +1 next, -1 prev.
   function skipClip(dir) {
     if (!audioReady || !actx || !seq.length) return;   // never act on a not-ready graph
-    // step from the PENDING jump target if one is still loading, so rapid Next/Next while a
-    // track decodes advances two tracks, not the same one twice
-    var base = pendingJump >= 0 ? pendingJump : currentSeqIndex();
-    jumpToSeqIndex(base + dir);
+    // step from the PENDING jump target if one is still loading (so rapid Next/Next advances two
+    // tracks, not the same one twice); otherwise from the track SHOWN as Now Playing — not the
+    // raw clock read, which sits a hair before the track head after a jump / while paused and
+    // would make Next land on the current track again (the "Next doesn't do anything" bug).
+    var base = pendingJump >= 0 ? pendingJump : displayedSeqIndex();
+    var target = dir < 0 ? prevDistinctSeqIndex(base) : nextDistinctSeqIndex(base);
+    if (target < 0) target = base + dir;   // single-track fallback (shouldn't happen with a full playlist)
+    jumpToSeqIndex(target);
   }
   if (btnPlay) btnPlay.addEventListener('click', function (e) {
     e.stopPropagation();
