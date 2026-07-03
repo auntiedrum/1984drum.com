@@ -29,6 +29,20 @@
     return m ? ('?v=' + m[1]) : '';
   })();
 
+  // Returning-visitor detection: on a repeat visit the montage + gallery tiles are already in
+  // the HTTP cache, so the opening drawing time-lapse "landing" (which dims the View-Gallery hint
+  // and the mute button while the montage warms up) is just a delay — skip it and show the real
+  // chrome immediately. The flag is a persistent localStorage key set on the FIRST load; its mere
+  // presence on a later load means "seen before". Falls back to showing the landing if storage is
+  // unavailable (private mode) — no worse than today.
+  var VISITED_KEY = 'intro-visited-v1';
+  function hasVisitedBefore() {
+    try { return !!localStorage.getItem(VISITED_KEY); } catch (e) { return false; }
+  }
+  function markVisited() {
+    try { localStorage.setItem(VISITED_KEY, '1'); } catch (e) {}
+  }
+
   // mark the page so CSS can float the site nav transparently over the art and lock scroll
   document.body.classList.add('has-intro');
   document.documentElement.classList.add('intro-locked');
@@ -112,6 +126,10 @@
   // ---------- landing: open on a live drawing clip, slowly zooming, while the montage loads ----------
   var landing = { active: true, media: null, start: 0, DUR: 8, deadline: 0, killTimer: null };
   function setupLanding() {
+    // Returning visitor (assets already cached): skip the opening time-lapse entirely so the
+    // montage + View-Gallery hint + mute button are present at once. First-timers still get it.
+    if (hasVisitedBefore()) { landing.active = false; markVisited(); return; }
+    markVisited();                                  // remember this first visit for next time
     var vids = gallery.filter(function (g) { return g.video; });
     if (!vids.length) { landing.active = false; return; }
     var pick = vids[Math.floor(visRand() * vids.length)];
@@ -507,7 +525,8 @@
     frac = Math.max(0, Math.min(1, frac));
     return Math.pow(frac, VOL_EXP);
   }
-  var GRID_DUCK = 0.18;    // bed volume while the masonry grid is open (ducked under browsing)
+  var GRID_DUCK = 0.18;    // (HISTORICAL) old ducked gallery bed level — no longer applied; the
+                           // gallery now matches the montage's full level. See duckedGain().
   var aT0 = 0, loopTimer = null, clipWatch = null, lastClipIdx = -1;
   // After a USER jump the audio clock sits at the target track's start, but seqIndexAt() won't
   // report that track as "current" until its 2s crossfade completes — so for ~2s the clipWatch
@@ -891,15 +910,18 @@
     root.classList.toggle('is-muted-state', muted);    // CSS gates the volume slider on unmuted
     refreshTrackLabel();
   }
-  // the ducked bed level while browsing the grid. GRID_DUCK is a FIXED gain, but the montage
-  // level is now the CURVED volGain(VOL) — which can sit below GRID_DUCK when the user has
-  // chosen a low volume. Duck must never make the music LOUDER, so clamp to the current level.
-  function duckedGain() { return Math.min(GRID_DUCK, volGain(VOL)); }
+  // GALLERY audio level. The gallery used to DUCK the music to GRID_DUCK (0.18) so it sat quietly
+  // under browsing — but that made the gallery ~13 dB quieter than the montage, and the slider
+  // couldn't overcome the fixed cap. Per Pete's request the two views are now EQUAL: the gallery
+  // plays at the same full curved slider level as the montage. (GRID_DUCK is kept above only for
+  // reference/history — no longer applied.) The view-switch changeover fade still fires; it just
+  // fades out and back in at the SAME level now, so there's no volume drop crossing views.
+  function duckedGain() { return volGain(VOL); }
   // `audioOn` (used by grid-ducking) means "currently audible"
   function applyAudioLevel(secs) {
     audioOn = playing && !muted && !gridMode;
-    // respect the grid duck: a pause/play or mute toggle WHILE the grid is open must not
-    // un-duck the bed — only exitGrid (which clears gridMode first) restores full volume.
+    // gallery and montage now play at the SAME level (duckedGain() === volGain(VOL)); both
+    // branches are equal, kept split only so the grid path stays an obvious single edit point.
     var target = (playing && !muted) ? (gridMode ? duckedGain() : volGain(VOL)) : 0.0001;
     fadeAudio(target, secs);
   }
@@ -938,11 +960,16 @@
   }
   function onVolMove(e) { if (volDragging) { setVolume(volFracFromEvent(e), true); e.preventDefault(); } }
   function onVolEnd() { if (volDragging) { volDragging = false; if (volumeEl) volumeEl.classList.remove('is-dragging'); } }
-  if (volumeTrackEl) {
-    volumeTrackEl.addEventListener('mousedown', onVolStart);
+  // Forgiving hit area: start the drag from ANYWHERE inside the lozenge (the whole
+  // `.intro__volume` stem), not just the hairline 5px track — a press a little off the thin
+  // line still grabs the slider. volFracFromEvent maps the pointer's Y onto the track regardless
+  // of where in the stem it landed, so the level follows the finger/cursor immediately.
+  var volHitEl = volumeEl || volumeTrackEl;
+  if (volHitEl) {
+    volHitEl.addEventListener('mousedown', onVolStart);
     window.addEventListener('mousemove', onVolMove);
     window.addEventListener('mouseup', onVolEnd);
-    volumeTrackEl.addEventListener('touchstart', onVolStart, { passive: false });
+    volHitEl.addEventListener('touchstart', onVolStart, { passive: false });
     window.addEventListener('touchmove', onVolMove, { passive: false });
     window.addEventListener('touchend', onVolEnd);
   }
@@ -1080,11 +1107,22 @@
     }
     return Math.max(0, end - pos);
   }
+  // countdown format: MM:SS with ZERO-PADDED minutes ("00:19", not "-0:19"). No minus sign — the
+  // number visibly ticks DOWN, so the sign is redundant — and the fixed two-digit minutes keep the
+  // readout a constant width so it never shifts as the value changes.
+  function fmtCountdown(secs) {
+    secs = Math.max(0, Math.round(secs));
+    var m = Math.floor(secs / 60), s = secs % 60;
+    return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+  }
   var countdownTimer = null;
   function tickCountdown() {
     if (countdownEl) {
-      if (!audioReady || muted || !seq.length) countdownEl.textContent = '';
-      else countdownEl.textContent = '-' + fmtTime(secsLeftInTrack());
+      // Stays visible whenever a track is loaded — INCLUDING while paused or muted (it just
+      // freezes at the current remaining time), so the bar never changes height. Only blank it
+      // before any track has ever been engaged / the graph isn't ready.
+      if (!audioReady || !engaged || !seq.length) countdownEl.textContent = '';
+      else countdownEl.textContent = fmtCountdown(secsLeftInTrack());
     }
     updateTrackProgress();     // the progress bar rides the same 500ms tick
   }
@@ -1892,9 +1930,9 @@
     gridEl.setAttribute('aria-hidden', 'false');
     refreshPlayerUI();                           // now in the gallery: label -> Select/Next/Now, mute -> "Unmute"
     resumeVisibleClips();                        // start the clips currently on screen
-    // changeover: fade the (montage) music out then back in at the ducked gallery level, so the
-    // switch is an audible soundstage change rather than a straight duck. duckedGain() clamps to
-    // the current level so a low-volume setting never gets LOUDER on entering the grid.
+    // changeover: fade the music out then back IN at the same full slider level (duckedGain() now
+    // === volGain(VOL)), so crossing into the gallery is an audible soundstage change but NOT a
+    // volume drop — gallery and montage sit at identical loudness.
     if (audioOn) changeoverAudio(duckedGain(), 0.5, 1.0);
   }
   function exitGrid() {

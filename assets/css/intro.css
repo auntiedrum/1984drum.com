@@ -161,7 +161,12 @@ body.has-intro .site-container { display: none; }
    the SAME opaque colour so stem + circle are one seamless blob (not blur-over-blur). */
 .intro.audio-engaged:not(.is-muted-state) .intro__vol-wrap:hover .intro__volume,
 .intro.audio-engaged:not(.is-muted-state) .intro__volume.is-dragging {
-  height: 156px; padding: 20px 0 34px;             /* bottom padding keeps the track above the button icon */
+  /* Trim the padding so the draggable TRACK spans almost the whole lozenge. The old 20/34
+     padding left big top/bottom dead zones where a press snapped to max/mute and the middle of
+     the lozenge mapped to ~43% instead of 50% — the "volume slider issues". Small symmetric-ish
+     padding keeps the track clear of the button icon below while making press-position ≈ fill
+     position (click where you see the level, get that level). */
+  height: 156px; padding: 10px 0 20px;
   opacity: 1; visibility: visible; pointer-events: auto;
   transition-delay: 0s;
 }
@@ -266,12 +271,14 @@ body.has-intro .site-container { display: none; }
   display: none; flex-direction: column; align-items: flex-start; max-width: 22vw;
   opacity: .72; padding-top: 4px; gap: 4px;
 }
-/* countdown now sits INSIDE the Now-Playing column, under the track progress bar */
+/* countdown sits INLINE in the control row, to the RIGHT of the progress bar and centred on it
+   (the row is align-items:center). Fixed-width tabular figures + zero-padded MM keep it from
+   nudging the layout as it ticks. flex:0 0 auto so it never stretches/shrinks the row. */
 .intro__countdown {
   pointer-events: none; color: #f3ece2; opacity: .65;
   font-family: 'Roboto Slab', serif; font-size: 11px; letter-spacing: 1.2px;
   font-variant-numeric: tabular-nums; text-shadow: 0 2px 12px rgba(0,0,0,.8);
-  display: none; margin-top: 3px;
+  display: none; flex: 0 0 auto; white-space: nowrap;
 }
 .intro__upnext-label, .intro__lastplayed-label {
   font-family: 'Roboto Slab', serif; font-size: 9px; letter-spacing: 2.5px;
@@ -317,7 +324,8 @@ body.has-intro .site-container { display: none; }
    grid clip bars), draggable to scrub within the sounding track; countdown reads below it ---- */
 .intro__track-progress {
   display: none; position: relative; pointer-events: auto; cursor: pointer;
-  width: clamp(140px, 15vw, 220px); height: 42px; touch-action: none; flex: 0 0 auto;
+  /* shortened to leave room for the inline countdown to its right (was up to 220px) */
+  width: clamp(110px, 12vw, 180px); height: 42px; touch-action: none; flex: 0 0 auto;
 }
 .intro__track-progress::before {
   content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 3px;
@@ -336,14 +344,15 @@ body.has-intro .site-container { display: none; }
 .intro__track-progress:hover .intro__track-progress-fill::after,
 .intro__track-progress.is-dragging .intro__track-progress-fill::after { transform: translateY(-50%) scale(1); }
 
-/* the progress/scrub bar only appears in the "Now Playing" state (a track is actually
-   sounding); in Select-a-track / Next-up the row is just the label + [play] + mute. */
-.intro.is-grid.audio-ready.audio-engaged .intro__track-progress { display: block; }
+/* the progress/scrub bar + its inline countdown appear once a track has been engaged (they
+   persist through pause/mute — the graph is only suspended). In Select-a-track the row is just
+   the label + [play] + mute. */
+.intro.is-grid.audio-ready.audio-engaged .intro__track-progress,
+.intro.is-grid.audio-ready.audio-engaged .intro__countdown { display: block; }
 /* reveal the side info only on wide screens AND when there's a track to show */
 @media (min-width: 860px) {
   .intro.is-grid.audio-ready .intro__upnext.has-next { display: flex; }
   .intro.is-grid.audio-ready .intro__lastplayed.has-prev { display: flex; }
-  .intro.is-grid.audio-ready .intro__countdown { display: block; }
 }
 
 /* ---- track list: desktop hover-popup above the Now-Playing title ---- */

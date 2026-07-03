@@ -1,99 +1,99 @@
 {
  "tracks": [
   {
-   "id": "Track_4-normalized-16lufs",
-   "file": "Track_4-normalized-16lufs.mp3",
-   "title": "Track 4",
+   "id": "Scarlet Wax",
+   "file": "Scarlet Wax.mp3",
+   "title": "Scarlet Wax",
    "dur": 60.03,
    "e": 0.633,
    "bright": 657.8,
    "lufs": -16.9
   },
   {
-   "id": "Track_9-normalized-16lufs",
-   "file": "Track_9-normalized-16lufs.mp3",
-   "title": "Track 9",
+   "id": "Psycho",
+   "file": "Psycho.mp3",
+   "title": "Psycho",
    "dur": 59.74,
    "e": 0.644,
    "bright": 2980.8,
    "lufs": -16.6
   },
   {
-   "id": "Track_7-normalized-16lufs",
-   "file": "Track_7-normalized-16lufs.mp3",
-   "title": "Track 7",
+   "id": "Digital Swamp",
+   "file": "Digital Swamp.mp3",
+   "title": "Digital Swamp",
    "dur": 59.85,
    "e": 0.656,
    "bright": 1114.0,
    "lufs": -16.3
   },
   {
-   "id": "Track_16-normalized-16lufs",
-   "file": "Track_16-normalized-16lufs.mp3",
-   "title": "Track 16",
-   "dur": 50.39,
+   "id": "Dark Days",
+   "file": "Dark Days.mp3",
+   "title": "Dark Days",
+   "dur": 55.38,
    "e": 0.659,
-   "bright": 1893.9,
+   "bright": 1566.8,
    "lufs": -16.2
   },
   {
-   "id": "Track_13-normalized-16lufs",
-   "file": "Track_13-normalized-16lufs.mp3",
-   "title": "Track 13",
-   "dur": 58.44,
+   "id": "Ironing Board",
+   "file": "Ironing Board.mp3",
+   "title": "Ironing Board",
+   "dur": 36.83,
    "e": 0.663,
-   "bright": 1762.1,
+   "bright": 2102.6,
    "lufs": -16.1
   },
   {
-   "id": "Track_11-normalized-16lufs",
-   "file": "Track_11-normalized-16lufs.mp3",
-   "title": "Track 11",
-   "dur": 59.48,
-   "e": 0.667,
-   "bright": 1652.9,
-   "lufs": -16.0
-  },
-  {
-   "id": "Track_8-normalized-16lufs",
-   "file": "Track_8-normalized-16lufs.mp3",
-   "title": "Track 8",
+   "id": "Nes Blast",
+   "file": "Nes Blast.mp3",
+   "title": "Nes Blast",
    "dur": 59.82,
    "e": 0.667,
    "bright": 2469.6,
    "lufs": -16.0
   },
   {
-   "id": "Track_10-normalized-16lufs",
-   "file": "Track_10-normalized-16lufs.mp3",
-   "title": "Track 10",
+   "id": "Tonky Plonk",
+   "file": "Tonky Plonk.mp3",
+   "title": "Tonky Plonk",
+   "dur": 59.04,
+   "e": 0.667,
+   "bright": 2802.9,
+   "lufs": -16.0
+  },
+  {
+   "id": "Mummified Slice",
+   "file": "Mummified Slice.mp3",
+   "title": "Mummified Slice",
    "dur": 59.69,
    "e": 0.67,
    "bright": 1940.3,
    "lufs": -15.9
   },
   {
-   "id": "Track_3-normalized-16lufs",
-   "file": "Track_3-normalized-16lufs.mp3",
-   "title": "Track 3",
+   "id": "Bit Pond",
+   "file": "Bit Pond.mp3",
+   "title": "Bit Pond",
    "dur": 60.08,
    "e": 0.674,
    "bright": 1702.2,
    "lufs": -15.8
   },
   {
-   "id": "Track_1",
-   "file": "Track_1.mp3",
-   "title": "Track 1",
-   "dur": 226.27,
+   "id": "Oblong Sky",
+   "file": "Oblong Sky.mp3",
+   "title": "Oblong Sky",
+   "dur": 60.19,
    "e": 0.678,
-   "bright": 2459.4,
+   "bright": 687.0,
    "lufs": -15.7
   },
   {
-   "id": "Track_6-normalized-16lufs",
-   "file": "Track_6-normalized-16lufs.mp3",
-   "title": "Track 6",
+   "id": "Airport Tunnel",
+   "file": "Airport Tunnel.mp3",
+   "title": "Airport Tunnel",
    "dur": 59.9,
    "e": 0.681,
    "bright": 1955.5,
@@ -109,8 +109,8 @@
    "lufs": -15.2
   },
   {
-   "id": "Number_8_Colony-normalized-16lufs",
-   "file": "Number_8_Colony-normalized-16lufs.mp3",
+   "id": "Number_8_Colony",
+   "file": "Number_8_Colony.mp3",
    "title": "Number 8 Colony",
    "dur": 135.13,
    "e": 0.73,
@@ -118,8 +118,8 @@
    "lufs": -14.3
   },
   {
-   "id": "I_Feel_Free-normalized-16lufs",
-   "file": "I_Feel_Free-normalized-16lufs.mp3",
+   "id": "I_Feel_Free",
+   "file": "I_Feel_Free.mp3",
    "title": "I Feel Free",
    "dur": 137.76,
    "e": 0.685,
@@ -127,17 +127,8 @@
    "lufs": -15.5
   },
   {
-   "id": "Track_2-normalized-16lufs",
-   "file": "Track_2-normalized-16lufs.mp3",
-   "title": "Track 2",
-   "dur": 60.19,
-   "e": 0.678,
-   "bright": 687.0,
-   "lufs": -15.7
-  },
-  {
-   "id": "Phantom-normalized-16lufs",
-   "file": "Phantom-normalized-16lufs.mp3",
+   "id": "Phantom",
+   "file": "Phantom.mp3",
    "title": "Phantom",
    "dur": 41.53,
    "e": 0.678,
@@ -145,17 +136,26 @@
    "lufs": -15.7
   },
   {
-   "id": "Track_14-normalized-16lufs",
-   "file": "Track_14-normalized-16lufs.mp3",
-   "title": "Track 14",
+   "id": "Air_Brakes",
+   "file": "Air_Brakes.mp3",
+   "title": "Air Brakes",
+   "dur": 226.27,
+   "e": 0.678,
+   "bright": 2459.4,
+   "lufs": -15.7
+  },
+  {
+   "id": "Numbers",
+   "file": "Numbers.mp3",
+   "title": "Numbers",
    "dur": 56.24,
    "e": 0.67,
    "bright": 1556.6,
    "lufs": -15.9
   },
   {
-   "id": "Twinkle_Blue_Star-normalized-16lufs",
-   "file": "Twinkle_Blue_Star-normalized-16lufs.mp3",
+   "id": "Twinkle Blue Star",
+   "file": "Twinkle Blue Star.mp3",
    "title": "Twinkle Blue Star",
    "dur": 129.33,
    "e": 0.667,
@@ -163,44 +163,44 @@
    "lufs": -16.0
   },
   {
-   "id": "Track_12-normalized-16lufs",
-   "file": "Track_12-normalized-16lufs.mp3",
-   "title": "Track 12",
-   "dur": 59.04,
+   "id": "Slow Drops",
+   "file": "Slow Drops.mp3",
+   "title": "Slow Drops",
+   "dur": 59.48,
    "e": 0.667,
-   "bright": 2802.9,
+   "bright": 1652.9,
    "lufs": -16.0
   },
   {
-   "id": "Track_19-normalized-16lufs",
-   "file": "Track_19-normalized-16lufs.mp3",
-   "title": "Track 19",
-   "dur": 36.83,
+   "id": "Miami",
+   "file": "Miami.mp3",
+   "title": "Miami",
+   "dur": 58.44,
    "e": 0.663,
-   "bright": 2102.6,
+   "bright": 1762.1,
    "lufs": -16.1
   },
   {
-   "id": "Track_5-normalized-16lufs",
-   "file": "Track_5-normalized-16lufs.mp3",
-   "title": "Track 5",
+   "id": "Plinky Wonk",
+   "file": "Plinky Wonk.mp3",
+   "title": "Plinky Wonk",
+   "dur": 50.39,
+   "e": 0.659,
+   "bright": 1893.9,
+   "lufs": -16.2
+  },
+  {
+   "id": "Chips and Vinegar",
+   "file": "Chips and Vinegar.mp3",
+   "title": "Chips and Vinegar",
    "dur": 60.03,
    "e": 0.659,
    "bright": 2386.0,
    "lufs": -16.2
   },
   {
-   "id": "Track_15-normalized-16lufs",
-   "file": "Track_15-normalized-16lufs.mp3",
-   "title": "Track 15",
-   "dur": 55.38,
-   "e": 0.659,
-   "bright": 1566.8,
-   "lufs": -16.2
-  },
-  {
-   "id": "Afrijonzo-normalized-16lufs",
-   "file": "Afrijonzo-normalized-16lufs.mp3",
+   "id": "Afrijonzo",
+   "file": "Afrijonzo.mp3",
    "title": "Afrijonzo",
    "dur": 120.19,
    "e": 0.648,
@@ -208,9 +208,9 @@
    "lufs": -16.5
   },
   {
-   "id": "Track_17-normalized-16lufs",
-   "file": "Track_17-normalized-16lufs.mp3",
-   "title": "Track 17",
+   "id": "Feather Sunrise",
+   "file": "Feather Sunrise.mp3",
+   "title": "Feather Sunrise",
    "dur": 50.0,
    "e": 0.644,
    "bright": 1217.7,
