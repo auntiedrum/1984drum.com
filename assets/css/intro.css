@@ -130,42 +130,50 @@ body.has-intro .site-container { display: none; }
 }
 .intro.is-landing .intro__mute-prompt { max-width: 0 !important; opacity: 0 !important; }
 
-/* ---- volume slider — pops up ABOVE the mute button, drag up/down to set level ----
-   Wrapped with the mute button so hovering either keeps it open; it's a vertical track with
-   a fill (from the bottom) and a draggable knob. Only usable once audio is unmuted. */
+/* ---- volume slider — GROWS UP out of the mute button as one continuous lozenge ----
+   Rather than a separate floating panel, the slider is a vertical STEM the same width as the
+   48px button, sitting flush on top of it (its bottom overlaps the button's rounded top so the
+   two read as a single pill). It's collapsed to height 0 at rest and grows upward on hover —
+   the vertical mirror of how the button grows LEFT to reveal its text. Only usable when unmuted. */
 .intro__vol-wrap { position: relative; display: flex; align-items: center; }
 .intro__volume {
-  /* anchored to the RIGHT end of the wrap, not its centre: the mute pill expands leftwards on
-     hover (icon pinned right), so only the right edge is stable — 24px in = the icon's centre.
-     Centring on the wrap put the slider over the middle of the expanded pill, unreachable
-     without the cursor leaving the button and the popup closing. */
-  position: absolute; right: 24px; bottom: calc(100% + 12px); transform: translateX(50%) translateY(8px);
-  z-index: 20; width: 44px; height: 132px;
-  display: flex; align-items: center; justify-content: center;
-  background: rgba(10,14,12,.92);
-  -webkit-backdrop-filter: blur(20px) saturate(1.05); backdrop-filter: blur(20px) saturate(1.05);
-  border: 1px solid rgba(255,255,255,.08); border-radius: 22px;
-  box-shadow: 0 14px 40px rgba(0,0,0,.5);
+  /* same width as the button; sits over the button's fixed RIGHT edge (the button expands
+     leftwards on hover, so the right edge is the stable anchor). Bottom overlaps the button's
+     24px radius so there is no seam between stem and button. */
+  position: absolute; right: 0; bottom: 24px;
+  z-index: 20; width: 48px; height: 0; overflow: hidden;
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 0; box-sizing: border-box;
+  background: rgba(0,0,0,.4);
+  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+  border-radius: 24px 24px 0 0;                     /* rounded TOP only; bottom merges into the button */
   opacity: 0; visibility: hidden; pointer-events: none;
-  /* the .25s delay is a grace period on CLOSE only (the open rule zeroes it): a cursor that
-     slips off for a beat can come back before the popup starts to fade */
-  transition: opacity .18s ease .25s, transform .18s ease .25s, visibility .18s .25s;
+  /* grow/shrink on HEIGHT (the vertical analogue of the button's max-width slide). The delay is
+     grace on CLOSE only (the open rule zeroes it) so a cursor that slips off briefly can return. */
+  transition: height .45s cubic-bezier(.16,1,.3,1) .2s,
+              padding .45s cubic-bezier(.16,1,.3,1) .2s,
+              opacity .2s ease .2s, visibility .2s .2s,
+              background .2s ease;
 }
-/* invisible slack around the popup, and a bridge across the 12px gap down to the button, so
-   travelling up to the slider (or overshooting it slightly) never drops :hover on the wrap */
+/* invisible bridge over the gap between stem and button so travelling between them (or a slight
+   overshoot off the stem) never drops :hover on the wrap */
 .intro__volume::before {
-  content: ''; position: absolute;
-  top: -16px; left: -18px; right: -18px; bottom: -14px;
+  content: ''; position: absolute; left: -8px; right: -8px; bottom: -28px; height: 32px;
 }
-/* pop the slider open when the mute button OR the slider itself is hovered — but only when
-   audio is engaged AND not muted (the slider is meaningless while muted). */
+/* open the stem when the mute button OR the stem itself is hovered — only when engaged + unmuted.
+   The stem + button share the darker hover background so they read as one solid pill (no seam). */
 .intro.audio-engaged:not(.is-muted-state) .intro__vol-wrap:hover .intro__volume,
 .intro.audio-engaged:not(.is-muted-state) .intro__volume.is-dragging {
-  opacity: 1; visibility: visible; pointer-events: auto; transform: translateX(50%) translateY(0);
-  transition-delay: 0s;   /* open instantly — the delay above is grace on close only */
+  height: 150px; padding: 18px 0 40px;             /* 40px bottom clears the button icon below */
+  opacity: 1; visibility: visible; pointer-events: auto;
+  background: rgba(0,0,0,.6);
+  transition-delay: 0s;
 }
+/* keep the button dark to match while the stem is open, so the two are visually continuous */
+.intro.audio-engaged:not(.is-muted-state) .intro__vol-wrap:hover .intro__mute-btn,
+.intro.audio-engaged:not(.is-muted-state) .intro__volume.is-dragging + .intro__mute-btn { background: rgba(0,0,0,.6); }
 .intro__volume-track {
-  position: relative; width: 6px; height: 104px; border-radius: 3px;
+  position: relative; width: 6px; height: 100%; border-radius: 3px;
   background: rgba(255,255,255,.22); cursor: pointer; touch-action: none;
 }
 .intro__volume-fill {
@@ -173,10 +181,14 @@ body.has-intro .site-container { display: none; }
   background: #f3ece2; border-radius: 3px;
 }
 .intro__volume-knob {
-  position: absolute; left: 50%; bottom: 85%; width: 16px; height: 16px; border-radius: 50%;
+  position: absolute; left: 50%; bottom: 85%; width: 14px; height: 14px; border-radius: 50%;
   background: #fff; transform: translate(-50%, 50%);
   box-shadow: 0 2px 8px rgba(0,0,0,.5); pointer-events: none;
 }
+/* GALLERY: the mute button is 42px there (not 48px), so the stem matches its width + radius so
+   they stay one continuous lozenge (montage keeps the 48px defaults above). */
+.intro.is-grid .intro__volume { width: 42px; bottom: 21px; border-radius: 21px 21px 0 0; }
+.intro.is-grid .intro__volume::before { bottom: -24px; }
 
 /* the "Now Playing" block + all transport controls appear only in the gallery.
    The centre holds three columns on a wide screen: [Up Next] · [Now Playing] · [Last Played].
@@ -673,6 +685,9 @@ body.has-intro .site-container { display: none; }
   .intro.is-grid .intro__controls .intro__next-btn,
   .intro.is-grid .intro__controls .intro__mute-btn { width: 44px; height: 44px; }
   .intro.is-grid .intro__controls .intro__mute-btn { min-width: 44px; max-width: 44px; border-radius: 22px; }
+  /* the gallery mute button is 44px here, so the volume stem must match (44px wide, overlap the
+     22px radius) to stay a seamless single lozenge */
+  .intro.is-grid .intro__volume { width: 44px; bottom: 22px; border-radius: 22px 22px 0 0; }
   .intro__track-progress { width: clamp(90px, 30vw, 160px); height: 44px; }
   .intro__now { margin: 0 6px; }   /* keep the cluster clear of the screen edges */
   .intro__track-label { font-size: 8px; letter-spacing: 2px; }

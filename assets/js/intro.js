@@ -494,6 +494,12 @@
   var VOL = 0.85;
   var GRID_DUCK = 0.18;    // bed volume while the masonry grid is open (ducked under browsing)
   var aT0 = 0, loopTimer = null, clipWatch = null, lastClipIdx = -1;
+  // After a USER jump the audio clock sits at the target track's start, but seqIndexAt() won't
+  // report that track as "current" until its 2s crossfade completes — so for ~2s the clipWatch
+  // would read the PREVIOUS track and overwrite the freshly-shown title. jumpLockIdx pins the
+  // Now-Playing title to the jumped-to track; clipWatch leaves it alone until the clock has
+  // genuinely advanced into that track (or the lock is cleared).
+  var jumpLockIdx = -1, jumpLockTimer = null;
   // prev/next must only be offered when audio can act INSTANTLY (opening buffers decoded +
   // context running) — otherwise on mobile a tap on a suspended/loading graph does nothing.
   // Reflect readiness as a class the CSS uses to reveal the arrows, and re-check on a light poll.
@@ -724,6 +730,12 @@
       var dur = seqDuration();
       var p = (actx.currentTime - aT0) % dur; if (p < 0) p += dur;
       var ci = seqIndexAt(p);
+      // honour a user-jump lock: keep the target's title on screen until the clock actually
+      // reaches that track (seqIndexAt catches up once the crossfade completes), then release.
+      if (jumpLockIdx >= 0) {
+        if (ci === jumpLockIdx) jumpLockIdx = -1;   // clock caught up -> normal tracking resumes
+        else return;                                 // still in the crossfade window -> hold the title
+      }
       if (ci !== lastClipIdx) { lastClipIdx = ci; pickWord(seq[ci] && seq[ci].clip); updateUpNext(); }
     }, 300);
     // live countdown to the end of the current track (ticks every second)
@@ -736,6 +748,21 @@
     master.gain.cancelScheduledValues(now);
     master.gain.setValueAtTime(Math.max(0.0001, master.gain.value), now);
     master.gain.linearRampToValueAtTime(Math.max(0.0001, target), now + secs);
+  }
+  // a CHANGEOVER fade for switching view (gallery <-> montage): dip the music fully OUT, then
+  // bring it back IN to `target` — a clear "one soundstage ends, the next begins" gesture
+  // rather than a single continuous ramp. No-op fade-in if we're ending muted/paused/silent.
+  function changeoverAudio(target, outSecs, inSecs) {
+    if (!actx || !master) return;
+    var now = actx.currentTime;
+    master.gain.cancelScheduledValues(now);
+    master.gain.setValueAtTime(Math.max(0.0001, master.gain.value), now);
+    master.gain.linearRampToValueAtTime(0.0001, now + outSecs);          // fade OUT to silence
+    var end = Math.max(0.0001, target);
+    if (end > 0.0002) {                                                   // then fade back IN
+      master.gain.setValueAtTime(0.0001, now + outSecs + 0.05);
+      master.gain.linearRampToValueAtTime(end, now + outSecs + 0.05 + inSecs);
+    }
   }
   // ---- player ----
   // The playlist is ALWAYS playing under the hood (starts silent on load — no gesture needed
@@ -801,7 +828,8 @@
     }
     lastTitle = name;
     if (trackTitleEl) trackTitleEl.textContent = name;
-    if (trackEl) trackEl.setAttribute('title', name);
+    // NOTE: deliberately NO `title` attribute here — a native tooltip of the current track
+    // name popped up whenever the cursor was over the Now-Playing block / track list.
     return name;
   }
 
@@ -1152,11 +1180,17 @@
     playing = true;
     // fast fade-in: a user jump should sound at once, not swell in over the 2s crossfade ramp
     userSeekRamp = true; pumpSchedule(); userSeekRamp = false;
-    // Instant feedback: name it from the TARGET track (the audio clock hasn't moved yet).
-    // Then drop lastClipIdx so the tight clipWatch poll re-confirms against what's REALLY
-    // sounding a beat later — self-correcting any drift between this guess and the anchor.
+    // Instant feedback: name it from the TARGET track NOW (the audio clock hasn't moved yet),
+    // and LOCK the title to it so the clipWatch — which for the next ~2s (the crossfade) still
+    // reads the previous track from seqIndexAt — can't overwrite it. lastClipIdx tracks the
+    // target too, so once the lock releases we don't re-fire pickWord for the same track.
     pickWord(seq[ci].clip);
-    lastClipIdx = -1;
+    jumpLockIdx = ci;
+    lastClipIdx = ci;
+    // safety: never let the lock stick past the crossfade — release it after ~3s regardless,
+    // so if the clock somehow never lands exactly on jumpLockIdx, normal tracking resumes.
+    clearTimeout(jumpLockTimer);
+    jumpLockTimer = setTimeout(function () { jumpLockIdx = -1; }, 3000);
     refreshPlayerUI();
     updateUpNext();
     tickCountdown();
@@ -1759,7 +1793,9 @@
     root.classList.add('is-grid');
     gridEl.setAttribute('aria-hidden', 'false');
     resumeVisibleClips();                        // start the clips currently on screen
-    if (audioOn) fadeAudio(GRID_DUCK, 0.6);     // duck the bed while browsing the grid
+    // changeover: fade the (montage) music out then back in at the ducked gallery level, so the
+    // switch is an audible soundstage change rather than a straight duck. Only when audible.
+    if (audioOn) changeoverAudio(GRID_DUCK, 0.5, 1.0);
   }
   function exitGrid() {
     gridMode = false;
@@ -1768,8 +1804,14 @@
     pauseAllClips();    // release every clip so nothing decodes behind the montage
     closeLightbox();
     closeTrackList();   // never leave an invisible open list/sheet floating over the montage
+    // was the gallery audio actually audible? (audioOn is cleared by applyAudioLevel via
+    // gridMode, so capture it from play/mute state directly.) If so, fade what was playing OUT
+    // and the montage music back IN; otherwise just settle to the correct (silent) level.
+    var willBeAudible = playing && !muted;
     freshMontage();                              // come back to a NEW montage
-    applyAudioLevel(1.2);                         // un-duck (respects play/mute state)
+    audioOn = willBeAudible;                      // keep the grid-duck flag in sync with reality
+    if (willBeAudible) changeoverAudio(VOL, 0.6, 1.4);   // fade out gallery -> fade in montage
+    else applyAudioLevel(1.2);                            // muted/paused: just settle silently
   }
   // single top button: in the MONTAGE it opens the GALLERY (grid); in the GALLERY it
   // returns to a MONTAGE. Its label swaps to match (see CSS + the two label spans).
