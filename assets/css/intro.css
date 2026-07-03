@@ -514,6 +514,11 @@ body.has-intro .site-container { display: none; }
   position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
 }
 .intro__cell:hover img, .intro__cell:hover video { filter: none; }
+/* clip tiles autoplay; make sure the first-frame POSTER fills the tile the same way the video
+   frames do (cover), so there's no letterbox/jump when the moving clip reveals over it. The
+   poster is a crisp screen grab — never the blurred `.is-lqip` treatment (that's images-only). */
+.intro__cell video.is-clip { object-fit: cover; }
+.intro__cell video.is-clip { object-position: center; }
 /* LQIP placeholder: the tiny baked thumb stretched up — kept soft so it reads as a
    placeholder, then the full image swaps in (see is-loaded fade). */
 .intro__cell img.is-lqip {

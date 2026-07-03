@@ -1267,19 +1267,30 @@
     // every tile below it reflows — that's what tore the gaps into the grid on scroll.
     // Pinning aspect-ratio up front keeps the column packing stable across the load.
     if (item.w && item.h) cell.style.aspectRatio = item.w + ' / ' + item.h;
-    // never show a broken source — if the media fails to load, drop the whole cell.
-    function dropCell() { if (cell.parentNode) cell.parentNode.removeChild(cell); }
+    // never show a broken source — if the media fails to load, drop the whole cell (and
+    // unobserve/release its clip so a removed tile never lingers in the observer set).
+    function dropCell() {
+      if (cell._releaseClip) cell._releaseClip();
+      if (cell.parentNode) cell.parentNode.removeChild(cell);
+    }
     var media;
-    if (item.video) {
+    if (item.video && level === 0) {
+      // LIVE clip — only on the FIRST (level 0) gallery pass. Infinite-scroll repeats fall to
+      // the static-poster branch below, so the number of live <video>s is capped at one
+      // gallery's worth no matter how far the visitor scrolls (mobile caps ~16 live videos).
       media = document.createElement('video');
-      // preload='none': the grid pre-builds ~18 video cells on load; eager metadata fetches
-      // (×2 with webm) blew past mobile's concurrent-decoder + connection limits, stalling the
-      // whole grid. The clip still loads on hover/tap (wireClipCell calls play()).
+      // clips AUTOPLAY (silent, looping) rather than waiting for hover. To keep that smooth
+      // across many tiles an IntersectionObserver (wireClipCell) loads + plays only tiles
+      // in/near the viewport WHILE THE GALLERY IS OPEN, and releases those that scroll away or
+      // when the gallery closes — so we never blow past the concurrent-decoder / connection limits.
       media.muted = true; media.loop = true; media.playsInline = true; media.preload = 'none';
       media.setAttribute('muted', ''); media.setAttribute('playsinline', '');
-      // a baked first-frame poster (data-URI) so the cell shows an image instantly with
-      // preload='none' — without it the tile would be a blank box until played.
+      media.setAttribute('autoplay', '');
+      // first-frame POSTER (baked data-URI screen grab): shown crisp — NOT the blurred `.is-lqip`
+      // treatment, which is images-only — until the clip has buffered enough to play smoothly,
+      // then the moving video reveals over it. So a tile is never a degraded/pixelated block.
       if (item.lqip) media.poster = item.lqip;
+      media.className = 'is-clip is-poster';   // is-poster: not yet playing -> poster showing
       // drop the WebM source where it can't play (Safari/iOS) so we never fetch a dead source
       var canWebm = !!media.canPlayType && !!media.canPlayType('video/webm').replace('no', '');
       if (item.webm && canWebm) { var sw = document.createElement('source'); sw.src = item.webm; sw.type = 'video/webm'; media.appendChild(sw); }
@@ -1294,8 +1305,16 @@
         if (e.target.closest('.intro__cell-bar')) return;
         openLightbox(item);
       });
-      // pixelate repeated video thumbs too (CSS pixelated rendering on the <video>)
-      if (level > 0) pixelateMedia(media, level);
+    } else if (item.video) {
+      // REPEAT copy of a clip on infinite scroll — a static first-frame poster image (pixelated
+      // by loop level like the stills), NOT another live <video>. Clicking still opens the clip.
+      media = document.createElement('img');
+      media.loading = 'lazy'; media.decoding = 'async';
+      media.addEventListener('error', dropCell);
+      if (item.w && item.h) { media.width = item.w; media.height = item.h; }
+      if (item.lqip) media.src = item.lqip;
+      cell.appendChild(media);
+      cell.addEventListener('click', function () { openLightbox(item); });
     } else {
       media = document.createElement('img');
       media.loading = 'lazy'; media.decoding = 'async';
@@ -1367,24 +1386,94 @@
     probe.onerror = function () { imgEl.src = src; };
     probe.src = src;
   }
-  function pixelateMedia(el, level) { el.classList.add('is-pixelated'); el.style.imageRendering = 'pixelated'; }
 
-  // hover plays the clip; the bar reflects/seeks progress; a click that isn't a drag opens it.
+  // A shared IntersectionObserver drives clip autoplay. Its root is the VIEWPORT (null): the
+  // grid is only opacity-hidden in the montage (never display:none), so a gridEl-rooted
+  // observer would report every tile "visible" and start decoding clips UNDER the montage
+  // before the gallery is ever opened. Instead we (a) only PLAY when the gallery is actually
+  // open (gridMode), and (b) on load, when a tile leaves the viewport, or when the gallery
+  // closes, we PAUSE and fully RELEASE the clip (drop preload + empty the source via load())
+  // so decoders never pile up. Tiles unobserve themselves when their cell is removed.
+  var clipObserver = null, observedClips = [];
+  function releaseClip(v) {
+    try { v.pause(); } catch (e) {}
+    // drop the decoded pipeline: clear the source and reset to preload=none so a paused
+    // off-screen clip doesn't keep holding a decoder (mobile caps ~16 live videos).
+    if (v.networkState !== 0 /* not already empty */) {
+      v.preload = 'none';
+      try { v.removeAttribute('src'); v.load(); } catch (e) {}   // <source> children remain; load() re-reads them next time
+      v.classList.add('is-poster');   // back to the crisp first-frame poster
+    }
+  }
+  function playClip(v) {
+    if (!gridMode) return;            // never play under the montage
+    if (v.preload !== 'auto') v.preload = 'auto';
+    if (v.networkState === 0 /* NETWORK_EMPTY */) { try { v.load(); } catch (e) {} }
+    v.play().catch(function () {});
+  }
+  function ensureClipObserver() {
+    if (clipObserver || typeof IntersectionObserver === 'undefined') return clipObserver;
+    clipObserver = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (en.isIntersecting) playClip(en.target);
+        else releaseClip(en.target);
+      });
+    }, { root: null, rootMargin: '250px 0px', threshold: 0.01 });
+    return clipObserver;
+  }
+  function observeClip(v) {
+    var obs = ensureClipObserver();
+    if (obs) { obs.observe(v); observedClips.push(v); }
+  }
+  function unobserveClip(v) {
+    if (clipObserver) { try { clipObserver.unobserve(v); } catch (e) {} }
+    var i = observedClips.indexOf(v); if (i >= 0) observedClips.splice(i, 1);
+  }
+  // when the gallery closes, stop + release every clip so nothing decodes behind the montage;
+  // reopening re-triggers the observer for whatever is on screen.
+  function pauseAllClips() { observedClips.forEach(releaseClip); }
+  // when the gallery (re)opens, kick the clips currently in view — the observer only fires on
+  // CHANGES, so tiles that were already intersecting when we paused them need a manual nudge.
+  function resumeVisibleClips() {
+    observedClips.forEach(function (v) {
+      var r = v.getBoundingClientRect();
+      var vh = window.innerHeight || document.documentElement.clientHeight;
+      if (r.bottom > -250 && r.top < vh + 250) playClip(v);
+    });
+  }
+
+  // clips autoplay when visible AND the gallery is open (via the observer); the bar
+  // reflects/seeks progress; a click that isn't a drag opens the full clip. The first-frame
+  // poster stays until the video is actually rendering frames, then `is-poster` is dropped.
   function wireClipCell(cell, media, bar, fill) {
     var dragging = false, moved = false;
-    cell.addEventListener('mouseenter', function () { media.play().catch(function () {}); });
-    cell.addEventListener('mouseleave', function () { if (!dragging) { try { media.pause(); } catch (e) {} } });
+    // reveal the video over its poster only once it's genuinely playing a frame
+    function revealPlaying() { media.classList.remove('is-poster'); }
+    media.addEventListener('playing', revealPlaying);
     media.addEventListener('timeupdate', function () {
+      if (media.currentTime > 0) revealPlaying();   // frames are advancing -> poster can go
       if (media.duration) fill.style.width = (media.currentTime / media.duration * 100) + '%';
     });
+    // if the element ever empties its source, fall back to the crisp first-frame poster
+    media.addEventListener('emptied', function () { media.classList.add('is-poster'); });
+    // expose teardown so dropCell / grid teardown can release this clip fully
+    cell._releaseClip = function () { unobserveClip(media); releaseClip(media); };
+    observeClip(media);
+    if (typeof IntersectionObserver === 'undefined') playClip(media);   // no IO: just try to play
+    // drag to scrub. The move/up listeners live on `document` ONLY while dragging (added on
+    // mousedown, removed on mouseup) — never permanent per-cell window listeners.
+    function onMove(e) { dragging = true; moved = true; seekAt(e.clientX); }
+    function onUp() { dragging = false; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); }
     function seekAt(clientX) {
       var r = bar.getBoundingClientRect();
       var frac = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
       if (media.duration) { media.currentTime = frac * media.duration; fill.style.width = (frac * 100) + '%'; }
     }
-    bar.addEventListener('mousedown', function (e) { dragging = true; moved = false; seekAt(e.clientX); e.stopPropagation(); e.preventDefault(); });
-    window.addEventListener('mousemove', function (e) { if (dragging) { moved = true; seekAt(e.clientX); } });
-    window.addEventListener('mouseup', function () { dragging = false; });
+    bar.addEventListener('mousedown', function (e) {
+      dragging = true; moved = false; seekAt(e.clientX);
+      document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
+      e.stopPropagation(); e.preventDefault();
+    });
     bar.addEventListener('touchstart', function (e) { dragging = true; seekAt(e.touches[0].clientX); e.stopPropagation(); }, { passive: true });
     bar.addEventListener('touchmove', function (e) { if (dragging) seekAt(e.touches[0].clientX); }, { passive: true });
     bar.addEventListener('touchend', function () { dragging = false; });
@@ -1421,11 +1510,11 @@
     wrap.className = 'intro__ytwrap';
     var iframe = document.createElement('iframe');
     iframe.className = 'intro__yt';
-    // no mute param: the click that opened the lightbox is a user gesture, so unmuted
-    // autoplay is normally allowed. If a browser still blocks it, the play veil stays up and
-    // the visitor's tap starts it (with sound) instead.
+    // mute=1: the clip always opens MUTED (the homepage music keeps playing underneath, and
+    // an autoplaying video that grabs the sound is jarring). Muted autoplay is also always
+    // permitted, so playback starts reliably. The visitor unmutes with our own mute toggle.
     iframe.src = 'https://www.youtube-nocookie.com/embed/' + item.yt
-      + '?autoplay=1&controls=0&rel=0&iv_load_policy=3&playsinline=1&fs=0&disablekb=1'
+      + '?autoplay=1&mute=1&controls=0&rel=0&iv_load_policy=3&playsinline=1&fs=0&disablekb=1'
       + '&loop=1&playlist=' + item.yt
       + '&enablejsapi=1&origin=' + encodeURIComponent(location.origin);
     iframe.allow = 'autoplay; encrypted-media; picture-in-picture';
@@ -1545,6 +1634,7 @@
             if (dead) return;
             playerReady = true;
             clearTimeout(apiTimeout);
+            try { player.mute(); } catch (e) {}   // always open muted (belt & braces on mute=1)
             setMuteUI();
             try { player.playVideo(); } catch (e) {}
             // the iframe may already be PLAYING (autoplay beat the API handshake, so no
@@ -1668,12 +1758,14 @@
     if (!gridBuilt) buildGrid();
     root.classList.add('is-grid');
     gridEl.setAttribute('aria-hidden', 'false');
+    resumeVisibleClips();                        // start the clips currently on screen
     if (audioOn) fadeAudio(GRID_DUCK, 0.6);     // duck the bed while browsing the grid
   }
   function exitGrid() {
     gridMode = false;
     root.classList.remove('is-grid');
     gridEl.setAttribute('aria-hidden', 'true');
+    pauseAllClips();    // release every clip so nothing decodes behind the montage
     closeLightbox();
     closeTrackList();   // never leave an invisible open list/sheet floating over the montage
     freshMontage();                              // come back to a NEW montage
