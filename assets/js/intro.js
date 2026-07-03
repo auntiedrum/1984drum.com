@@ -42,6 +42,7 @@
   var btnNext = root.querySelector('.intro__next-btn');
   var trackEl = root.querySelector('.intro__track');
   var trackBtn = root.querySelector('.intro__track-btn');
+  var trackLabelEl = root.querySelector('.intro__track-label');   // "Select a track" / "Next up" / "Now Playing"
   var trackListEl = root.querySelector('.intro__tracklist');
   // the title sits in a child span so the "Now Playing" label stays put; fall back to the
   // bar itself for older markup without the label/title split.
@@ -780,6 +781,21 @@
   // play/pause control. Pause then suspends; play resumes. Next/Prev jump the live audio to
   // the next/previous FULL track in the playlist.
   var playing = true, muted = true, engaged = false;   // engaged = user has unmuted at least once
+  // trackChosen = the visitor has picked a specific track (track list / next / prev) OR unmuted.
+  // Drives the centre label: none chosen -> "Select a track"; chosen but silent -> "Next up";
+  // audible -> "Now Playing". (engaged implies chosen, but a track can be chosen while muted.)
+  var trackChosen = false;
+  // set the centre label + the track button's aria to match the three states above
+  function refreshTrackLabel() {
+    if (!trackLabelEl) return;
+    var audible = engaged && !muted && playing;
+    var label = audible ? 'Now Playing' : (trackChosen ? 'Next Up' : 'Select a Track');
+    trackLabelEl.textContent = label;
+    // reflect the state on the root so CSS can gate which controls show (see .track-chosen etc.)
+    root.classList.toggle('track-chosen', trackChosen);
+    root.classList.toggle('track-audible', audible);
+    if (trackBtn) trackBtn.setAttribute('aria-label', audible ? 'Now playing — choose a track' : (trackChosen ? 'Next up — choose a track' : 'Select a track'));
+  }
 
   // the DOMINANT (audible) seq entry at loop-position `p`. A track becomes "current" only once
   // the crossfade INTO it has finished — i.e. at startAt + xfade — so during the 2s overlap the
@@ -845,16 +861,22 @@
 
   var mutePromptEl = btnMute && btnMute.querySelector('.intro__mute-prompt');
   function refreshPlayerUI() {
-    if (btnPlay) { btnPlay.classList.toggle('is-playing', playing); btnPlay.setAttribute('aria-pressed', playing ? 'true' : 'false'); }
+    // the play button shows PAUSE only when the track is actually AUDIBLE; in "Next Up" (chosen
+    // but silent) it shows PLAY, so pressing it starts the chosen track.
+    var audibleNow = engaged && !muted && playing;
+    if (btnPlay) { btnPlay.classList.toggle('is-playing', audibleNow); btnPlay.setAttribute('aria-pressed', audibleNow ? 'true' : 'false'); }
     if (btnMute) {
       btnMute.classList.toggle('is-muted', muted); btnMute.setAttribute('aria-pressed', muted ? 'true' : 'false');
-      // the hover pill prompts the OPPOSITE action of the current state
-      var label = muted ? 'Turn audio on' : 'Turn audio off';
+      // the hover pill prompts the OPPOSITE action of the current state. Shorter wording in the
+      // GALLERY (Unmute/Mute, slides right) vs the MONTAGE (Turn audio on/off, slides left).
+      var inGrid = root.classList.contains('is-grid');
+      var label = inGrid ? (muted ? 'Unmute' : 'Mute') : (muted ? 'Turn audio on' : 'Turn audio off');
       if (mutePromptEl) mutePromptEl.textContent = label;
-      btnMute.setAttribute('aria-label', label);
+      btnMute.setAttribute('aria-label', muted ? 'Turn audio on' : 'Turn audio off');
     }
     root.classList.toggle('audio-engaged', engaged);   // CSS reveals play/next/prev once engaged
     root.classList.toggle('is-muted-state', muted);    // CSS gates the volume slider on unmuted
+    refreshTrackLabel();
   }
   // the ducked bed level while browsing the grid. GRID_DUCK is a FIXED gain, but the montage
   // level is now the CURVED volGain(VOL) — which can sit below GRID_DUCK when the user has
@@ -1153,8 +1175,12 @@
   function setPlaying(on) {
     playing = on;
     if (on) {
+      // pressing PLAY also unmutes (and engages) — a chosen "Next Up" track should actually
+      // sound when the visitor hits play, not stay silent behind the mute.
+      if (muted) { muted = false; if (!engaged) { engaged = true; pickWord(); } }
+      trackChosen = true;
       resumeCtx();
-      applyAudioLevel(1.0);
+      applyAudioLevel(muted ? 0.4 : FADE_IN);
     } else {
       applyAudioLevel(0.4);
       setTimeout(function () { if (!playing && actx && actx.state === 'running') actx.suspend(); }, 450);
@@ -1165,6 +1191,7 @@
     muted = on;
     if (!on) {                                   // first unmute "engages" the player UI
       if (!engaged) { engaged = true; pickWord(); }
+      trackChosen = true;                        // unmuting counts as choosing to play
       resumeCtx();
       playing = true;
     }
@@ -1215,6 +1242,7 @@
   }
   function jumpToSeqIndex(ci) {
     if (!audioReady || !actx || !seq.length) return;
+    trackChosen = true;              // picking a track advances the label to "Next Up"/"Now Playing"
     ci = ((ci % seq.length) + seq.length) % seq.length;
     var id = seq[ci].clip.id;
     if (buffers[id]) { anchorAt(ci); return; }
@@ -1235,7 +1263,15 @@
     var base = pendingJump >= 0 ? pendingJump : currentSeqIndex();
     jumpToSeqIndex(base + dir);
   }
-  if (btnPlay) btnPlay.addEventListener('click', function (e) { e.stopPropagation(); setPlaying(!playing); });
+  if (btnPlay) btnPlay.addEventListener('click', function (e) {
+    e.stopPropagation();
+    // the play/pause button tracks AUDIBILITY, not the internal `playing` flag (which is true
+    // even while the mix runs silently under the mute). If it's not currently sounding, PLAY
+    // (setPlaying also auto-unmutes); if it IS sounding, pause.
+    var audible = engaged && !muted && playing;
+    if (audible) setPlaying(false);
+    else setPlaying(true);
+  });
   if (btnMute) btnMute.addEventListener('click', function (e) { e.stopPropagation(); setMuted(!muted); });
   if (btnPrev) btnPrev.addEventListener('click', function (e) { e.stopPropagation(); skipClip(-1); });
   if (btnNext) btnNext.addEventListener('click', function (e) { e.stopPropagation(); skipClip(1); });
@@ -1810,6 +1846,7 @@
     if (!gridBuilt) buildGrid();
     root.classList.add('is-grid');
     gridEl.setAttribute('aria-hidden', 'false');
+    refreshPlayerUI();                           // now in the gallery: label -> Select/Next/Now, mute -> "Unmute"
     resumeVisibleClips();                        // start the clips currently on screen
     // changeover: fade the (montage) music out then back in at the ducked gallery level, so the
     // switch is an audible soundstage change rather than a straight duck. duckedGain() clamps to
@@ -1820,6 +1857,7 @@
     gridMode = false;
     root.classList.remove('is-grid');
     gridEl.setAttribute('aria-hidden', 'true');
+    refreshPlayerUI();  // back in the montage: mute prompt reverts to "Turn audio on/off"
     pauseAllClips();    // release every clip so nothing decodes behind the montage
     closeLightbox();
     closeTrackList();   // never leave an invisible open list/sheet floating over the montage

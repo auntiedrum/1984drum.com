@@ -54,7 +54,12 @@ body.has-intro .site-container { display: none; }
    floating rounded rectangle). Only shown in the GALLERY — in the montage there's just the
    bare mute button (see the montage rule below). */
 .intro__bar-glass {
-  position: absolute; z-index: -1; pointer-events: none;
+  position: absolute; z-index: -1;
+  /* CAPTURE pointer events over the footer so clicks/taps on the frosted panel don't fall
+     THROUGH to the masonry tiles behind it. The bar itself is pointer-events:none (so only the
+     controls + this glass catch input); the glass sits at z-index -1 behind the controls, so
+     buttons still get their own clicks while the glass swallows everything else in the footer. */
+  pointer-events: auto;
   left: 0; right: 0; bottom: 0; top: 0;
   background: rgba(0,0,0,.6);
   -webkit-backdrop-filter: blur(20px) saturate(1.1); backdrop-filter: blur(20px) saturate(1.1);
@@ -85,9 +90,11 @@ body.has-intro .site-container { display: none; }
 .intro__mute-btn.is-muted .intro__ico-muted { display: block; }
 .intro__mute-btn.is-muted { color: #ff8a8a; }
 
-/* play button is HIDDEN until the user first unmutes */
+/* play button is HIDDEN in "Select a track"; it appears once a track is CHOSEN ("Next Up") and
+   stays through "Now Playing" — pressing it (auto-unmutes and) plays the chosen track. In the
+   montage there's no play button at all (only the corner mute), so gate on the gallery. */
 .intro__play-btn { display: none; }
-.intro.audio-engaged .intro__play-btn { display: flex; }
+.intro.is-grid.track-chosen .intro__play-btn { display: flex; }
 
 /* ---- unmute lozenge ----
    While muted, hovering the unmute button makes THE BUTTON ITSELF stretch from a circle
@@ -98,7 +105,9 @@ body.has-intro .site-container { display: none; }
    Width is driven by content + an animatable max-width (width:auto can't be transitioned),
    so the pill eases open and shut smoothly. */
 .intro__mute-btn {
-  position: relative; overflow: hidden; justify-content: flex-end;
+  /* z-index above the volume stem (z:20) so the stem grows UP behind the button and never
+     clips the speaker icon — the icon always sits on top of the slider's base. */
+  position: relative; z-index: 21; overflow: hidden; justify-content: flex-end;
   width: auto; min-width: 48px; max-width: 48px;     /* circle at rest (clips the text) */
   /* FIXED 24px (= half the 48px height) so the ends are always perfect half-circles as it
      slides open — a stadium/pill, never a squished "lip". (50% would distort while widening.) */
@@ -119,10 +128,13 @@ body.has-intro .site-container { display: none; }
               opacity .5s ease;
 }
 /* hovering/focusing the audio button (in EITHER state) opens the pill — its text reads the
-   opposite of the current state ("Turn audio on" when muted, "Turn audio off" when on). */
-.intro__mute-btn:hover,
+   opposite of the current state ("Turn audio on" when muted, "Turn audio off" when on).
+   The trigger is the whole VOL-WRAP, not just the button: once unmuted, moving the cursor UP
+   onto the volume stem must NOT retract the text (the button loses :hover but the wrap keeps
+   it) — otherwise the text "chords" back in while the stem is up. */
+.intro__vol-wrap:hover .intro__mute-btn,
 .intro__mute-btn:focus-visible { max-width: 280px; }
-.intro__mute-btn:hover .intro__mute-prompt,
+.intro__vol-wrap:hover .intro__mute-prompt,
 .intro__mute-btn:focus-visible .intro__mute-prompt {
   max-width: 220px; opacity: 1;
   margin-left: 10px;     /* extra breathing room before the text on the left */
@@ -195,10 +207,29 @@ body.has-intro .site-container { display: none; }
   background: #fff; transform: translate(-50%, 50%);
   box-shadow: 0 2px 8px rgba(0,0,0,.5); pointer-events: none;
 }
-/* GALLERY: the mute button is 42px there (not 48px), so the stem matches its width + centre so
-   they stay one continuous blob (montage keeps the 48px defaults above). */
-.intro.is-grid .intro__volume { width: 42px; bottom: 21px; border-radius: 21px 21px 0 0; }
-.intro.is-grid .intro__volume::before { bottom: -26px; }
+/* GALLERY: the mute button is 42px there (not 48px). Unlike the montage (icon pinned RIGHT,
+   text slides LEFT), the gallery button pins its icon on the LEFT and slides its text out to the
+   RIGHT — the button is the rightmost control in the centred cluster, so there's room to its
+   right. The volume stem therefore grows up from the LEFT (over the icon), so left:0 anchors it. */
+.intro.is-grid .intro__controls .intro__mute-btn { justify-content: flex-start; }
+.intro.is-grid .intro__volume { left: 0; right: auto; width: 42px; bottom: 21px; border-radius: 21px 21px 0 0; }
+.intro.is-grid .intro__volume::before { left: -8px; right: -8px; bottom: -26px; }
+/* the icon is a touch LARGER in the gallery than the montage (user asked for a bigger red icon).
+   flex:0 0 auto so the flex row (the button now justifies its icon LEFT) can't shrink the svg
+   below 24px — without it the muted (red) icon collapsed to ~16px wide. */
+.intro.is-grid .intro__controls .intro__mute-btn svg { width: 24px; height: 24px; flex: 0 0 auto; }
+/* slide the prompt text out to the RIGHT on hover (mirror of the montage's leftward slide) */
+.intro.is-grid .intro__controls .intro__mute-btn .intro__mute-prompt {
+  order: 2;   /* text AFTER the icon (icon stays on the left) */
+}
+/* expand the gallery button on hover (its own max-width:42px otherwise beats the shared hover
+   rule on specificity, so the pill wouldn't open). Text reveal margins mirror the montage. */
+.intro.is-grid .intro__controls .intro__vol-wrap:hover .intro__mute-btn,
+.intro.is-grid .intro__controls .intro__mute-btn:focus-visible { max-width: 240px; }
+.intro.is-grid .intro__controls .intro__vol-wrap:hover .intro__mute-prompt,
+.intro.is-grid .intro__controls .intro__mute-btn:focus-visible .intro__mute-prompt {
+  margin-left: 12px; margin-right: 10px;   /* gap AFTER the icon, breathing room before the right edge */
+}
 
 /* the "Now Playing" block + all transport controls appear only in the gallery.
    The centre holds three columns on a wide screen: [Up Next] · [Now Playing] · [Last Played].
@@ -299,10 +330,11 @@ body.has-intro .site-container { display: none; }
 .intro.is-grid .intro__controls .intro__next-btn,
 .intro.is-grid .intro__controls .intro__mute-btn { width: 42px; height: 42px; }
 .intro.is-grid .intro__controls .intro__mute-btn { min-width: 42px; max-width: 42px; border-radius: 21px; }
-.intro.is-grid .intro__controls .intro__play-btn svg,
-.intro.is-grid .intro__controls .intro__mute-btn svg { width: 20px; height: 20px; }
+.intro.is-grid .intro__controls .intro__play-btn svg { width: 20px; height: 20px; }
 .intro.is-grid .intro__controls .intro__prev-btn svg,
 .intro.is-grid .intro__controls .intro__next-btn svg { width: 20px; height: 20px; }
+/* NOTE: the gallery MUTE icon is intentionally larger (24px) — see the .intro.is-grid
+   .intro__controls .intro__mute-btn svg rule in the volume-slider section. */
 
 /* ---- now-playing progress bar — slim line between the transport buttons (same look as the
    grid clip bars), draggable to scrub within the sounding track; countdown reads below it ---- */
@@ -327,9 +359,9 @@ body.has-intro .site-container { display: none; }
 .intro__track-progress:hover .intro__track-progress-fill::after,
 .intro__track-progress.is-dragging .intro__track-progress-fill::after { transform: translateY(-50%) scale(1); }
 
-/* the progress bar is meaningful only once unmuted; the row's buttons still show while muted,
-   so the mute button is reachable — the row just compacts around the hidden bar. */
-.intro.is-grid.audio-ready:not(.is-muted-state) .intro__track-progress { display: block; }
+/* the progress/scrub bar only appears in the "Now Playing" state (a track is actually
+   sounding); in Select-a-track / Next-up the row is just the label + [play] + mute. */
+.intro.is-grid.audio-ready.track-audible .intro__track-progress { display: block; }
 /* reveal the side info only on wide screens AND when there's a track to show */
 @media (min-width: 860px) {
   .intro.is-grid.audio-ready .intro__upnext.has-next { display: flex; }
@@ -388,12 +420,12 @@ body.has-intro .site-container { display: none; }
   font-family: 'Roboto Slab', serif; font-size: 11px; letter-spacing: .5px;
   opacity: .6; flex: 0 0 auto; font-variant-numeric: tabular-nums;
 }
-/* prev/next only appear in the gallery AND once the audio graph can act instantly
-   (buffers decoded + context running) — so a tap always does something, never a dead press
-   on a still-buffering/suspended mix. */
+/* prev/next only appear once a track is actually PLAYING (the "Now Playing" state) and the
+   audio graph can act instantly — so a tap always does something, never a dead press on a
+   still-buffering/suspended mix. In "Select a track" / "Next up" they stay hidden. */
 .intro__prev-btn, .intro__next-btn { display: none; }
-.intro.is-grid.audio-ready .intro__prev-btn,
-.intro.is-grid.audio-ready .intro__next-btn { display: flex; }
+.intro.is-grid.audio-ready.track-audible .intro__prev-btn,
+.intro.is-grid.audio-ready.track-audible .intro__next-btn { display: flex; }
 .intro.is-grid .intro__track { opacity: .9; }
 /* in grid view the bar sits above the masonry overlay */
 .intro.is-grid .intro__bar { z-index: 5; }
@@ -421,7 +453,9 @@ body.has-intro .site-container { display: none; }
    centred, content-width box and sat in the middle-bottom of the screen instead. */
 .intro:not(.is-grid) .intro__now { position: static; }
 .intro:not(.is-grid) .intro__vol-wrap {
-  position: absolute; right: clamp(16px, 4vw, 40px);
+  /* equal 16px gap on the RIGHT and BOTTOM so the corner button is evenly inset (it used to sit
+     up to 40px from the right via clamp(...4vw...) while the bottom was 16px — a lopsided gap). */
+  position: absolute; right: 16px;
   bottom: calc(16px + env(safe-area-inset-bottom, 0px));
   pointer-events: auto;   /* float the mute control into the corner */
 }
