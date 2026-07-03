@@ -491,7 +491,17 @@
   var audioReady = false;      // buffers loaded AND the context is actually running
   var LOOP_TARGET = 560;   // only a fallback for seqDuration() before the playlist loads
   var FADE_IN = 5;         // exactly 5s
-  var VOL = 0.85;
+  var VOL = 0.95;   // SLIDER POSITION (0..1). The audible gain is volGain(VOL), curved below.
+  // (0.95 -> gain ~0.84, i.e. the default loudness is ~unchanged from the old linear 0.85.)
+  // Perceptual volume curve: loudness is roughly logarithmic, so a linear slider "does nothing"
+  // until the very bottom. Raising the position to a power makes the top of the travel audibly
+  // change the level and collapses to near-silence in the bottom quarter: at frac 1.0 -> 1.0,
+  // 0.75 -> ~0.30, 0.5 -> ~0.088, 0.25 -> ~0.0055 (essentially inaudible), 0 -> 0.
+  var VOL_EXP = 3.5;
+  function volGain(frac) {
+    frac = Math.max(0, Math.min(1, frac));
+    return Math.pow(frac, VOL_EXP);
+  }
   var GRID_DUCK = 0.18;    // bed volume while the masonry grid is open (ducked under browsing)
   var aT0 = 0, loopTimer = null, clipWatch = null, lastClipIdx = -1;
   // After a USER jump the audio clock sits at the target track's start, but seqIndexAt() won't
@@ -846,22 +856,30 @@
     root.classList.toggle('audio-engaged', engaged);   // CSS reveals play/next/prev once engaged
     root.classList.toggle('is-muted-state', muted);    // CSS gates the volume slider on unmuted
   }
+  // the ducked bed level while browsing the grid. GRID_DUCK is a FIXED gain, but the montage
+  // level is now the CURVED volGain(VOL) — which can sit below GRID_DUCK when the user has
+  // chosen a low volume. Duck must never make the music LOUDER, so clamp to the current level.
+  function duckedGain() { return Math.min(GRID_DUCK, volGain(VOL)); }
   // `audioOn` (used by grid-ducking) means "currently audible"
   function applyAudioLevel(secs) {
     audioOn = playing && !muted && !gridMode;
     // respect the grid duck: a pause/play or mute toggle WHILE the grid is open must not
     // un-duck the bed — only exitGrid (which clears gridMode first) restores full volume.
-    var target = (playing && !muted) ? (gridMode ? GRID_DUCK : VOL) : 0.0001;
+    var target = (playing && !muted) ? (gridMode ? duckedGain() : volGain(VOL)) : 0.0001;
     fadeAudio(target, secs);
   }
 
-  // ---- volume (the pop-up slider above the mute button) ----
-  // VOL is the audible level when unmuted; the slider sets it and, if we're currently
-  // audible, re-applies it live (a short fade so drags sound smooth, not zippered).
+  // ---- volume (the slider that grows out of the mute button) ----
+  // VOL is the slider POSITION (0..1); the audible gain is volGain(VOL) (perceptual curve). The
+  // slider sets the position and, if we're currently audible, re-applies the curved gain live
+  // (a short fade so drags sound smooth, not zippered).
   function setVolume(frac, live) {
     VOL = Math.max(0, Math.min(1, frac));
     setVolumeUI(VOL);
-    if (live && playing && !muted && !gridMode) fadeAudio(VOL <= 0.0001 ? 0.0001 : VOL, 0.06);
+    if (live && playing && !muted && !gridMode) {
+      var g = volGain(VOL);
+      fadeAudio(g <= 0.0001 ? 0.0001 : g, 0.06);
+    }
   }
   function setVolumeUI(frac) {
     var pct = Math.round(Math.max(0, Math.min(1, frac)) * 100);
@@ -1794,8 +1812,9 @@
     gridEl.setAttribute('aria-hidden', 'false');
     resumeVisibleClips();                        // start the clips currently on screen
     // changeover: fade the (montage) music out then back in at the ducked gallery level, so the
-    // switch is an audible soundstage change rather than a straight duck. Only when audible.
-    if (audioOn) changeoverAudio(GRID_DUCK, 0.5, 1.0);
+    // switch is an audible soundstage change rather than a straight duck. duckedGain() clamps to
+    // the current level so a low-volume setting never gets LOUDER on entering the grid.
+    if (audioOn) changeoverAudio(duckedGain(), 0.5, 1.0);
   }
   function exitGrid() {
     gridMode = false;
@@ -1810,7 +1829,7 @@
     var willBeAudible = playing && !muted;
     freshMontage();                              // come back to a NEW montage
     audioOn = willBeAudible;                      // keep the grid-duck flag in sync with reality
-    if (willBeAudible) changeoverAudio(VOL, 0.6, 1.4);   // fade out gallery -> fade in montage
+    if (willBeAudible) changeoverAudio(volGain(VOL), 0.6, 1.4);   // fade out gallery -> fade in montage
     else applyAudioLevel(1.2);                            // muted/paused: just settle silently
   }
   // single top button: in the MONTAGE it opens the GALLERY (grid); in the GALLERY it
