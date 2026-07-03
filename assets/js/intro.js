@@ -933,7 +933,12 @@
   function setVolume(frac, live) {
     VOL = Math.max(0, Math.min(1, frac));
     setVolumeUI(VOL);
-    if (live && playing && !muted && !gridMode) {
+    // Apply the new level live whenever the music is audible — in the GALLERY too. The old
+    // `!gridMode` guard dated from when the gallery ducked to a fixed GRID_DUCK (slider inert
+    // there); now both views play at volGain(VOL), so the slider must drive the gain in the
+    // gallery as well, otherwise dragging it does nothing (and it stays stuck loud after a
+    // mute/unmute). A short fade keeps drags smooth rather than zippered.
+    if (live && playing && !muted) {
       var g = volGain(VOL);
       fadeAudio(g <= 0.0001 ? 0.0001 : g, 0.06);
     }
