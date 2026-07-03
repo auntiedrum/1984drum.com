@@ -404,8 +404,12 @@ body.has-intro .site-container { display: none; }
 .intro:not(.is-grid) .intro__track-btn,
 .intro:not(.is-grid) .intro__countdown,
 .intro:not(.is-grid) .intro__tracklist { display: none; }
-/* drop .intro__track out of being the offset parent (made static above) so the absolutely
-   positioned vol-wrap anchors to .intro__bar (the full-width footer), not the centred column. */
+/* Make EVERY offset-parent candidate between the vol-wrap and the full-width footer static, so
+   the absolutely-positioned vol-wrap anchors to .intro__bar (which is position:absolute,
+   spanning the whole width) and lands in the true bottom-RIGHT corner. .intro__now is
+   position:relative by default — without clearing it here the vol-wrap anchored to that
+   centred, content-width box and sat in the middle-bottom of the screen instead. */
+.intro:not(.is-grid) .intro__now { position: static; }
 .intro:not(.is-grid) .intro__vol-wrap {
   position: absolute; right: clamp(16px, 4vw, 40px);
   bottom: calc(16px + env(safe-area-inset-bottom, 0px));
