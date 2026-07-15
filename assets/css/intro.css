@@ -534,6 +534,10 @@ body.has-intro .site-container { display: none; }
 }
 .intro__title:hover { background: rgba(0,0,0,.55); }
 .intro__title:active { transform: scale(.98); }
+/* second nav button — link to the warez app store (warez.1984drum.com). Shares the
+   .intro__title glass-box treatment (hover, glitch, landing/grid-ready fades) but sits
+   top-RIGHT, mirroring the toggle. Same-tab navigation on purpose: it's part of the site. */
+.intro__warez { left: auto; right: 0; text-decoration: none; }
 /* don't offer the toggle until the masonry is pre-built (grid-ready) — so it never opens
    to an empty/broken gallery. (is-landing already hides it during the opening clip.) */
 .intro:not(.grid-ready) .intro__title { opacity: 0; pointer-events: none; }
@@ -569,6 +573,11 @@ body.has-intro .site-container { display: none; }
     border-radius: 0;
   }
   .intro__label { font-size: 13px; letter-spacing: 2px; }
+  /* with the warez button present the two nav buttons split the top bar 50/50.
+     :has() guard keeps pages without the button (fragments-of-infinity snapshot,
+     which loads this same stylesheet) on the original full-width bar. */
+  .intro:has(.intro__warez) .intro__title { right: 50%; }
+  .intro:has(.intro__warez) .intro__warez { left: 50%; right: 0; }
 }
 
 /* ---- masonry grid overlay (toggled by the wordmark) ---- */
